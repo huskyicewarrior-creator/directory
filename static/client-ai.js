@@ -11,6 +11,46 @@ const CLIENT_TEACHERS = [
 ];
 
 export const BROWSER_MODEL_ID = "Llama-3.2-1B-Instruct-q4f16_1-MLC";
+export const RACE_MIN_PCT = 60;
+const RACE_LABELS = {
+  white: "white",
+  black: "black",
+  asian: "asian",
+  hispanic: "hispanic", latino: "hispanic", latina: "hispanic",
+  latinx: "hispanic", latine: "hispanic",
+  native: "native", indigenous: "native",
+  multi: "multi", multiracial: "multi",
+};
+const RACE_PHRASES = {
+  "native american": "native", "american indian": "native",
+  "mixed race": "multi",
+};
+let surnameTable = null;
+let surnameTablePromise = null;
+
+export function ensureSurnameTable() {
+  if (surnameTable) return Promise.resolve(surnameTable);
+  if (!surnameTablePromise) {
+    surnameTablePromise = fetch("/static/surname_race.json")
+      .then((r) => { if (!r.ok) throw new Error("surname table " + r.status); return r.json(); })
+      .then((d) => { surnameTable = d.surnames || {}; return surnameTable; })
+      .catch(() => { surnameTable = {}; return surnameTable; });
+  }
+  return surnameTablePromise;
+}
+
+export function surnameCategoryPct(last, category) {
+  if (!surnameTable || !category) return 0;
+  let best = 0;
+  for (const part of String(last || "").split(/[^A-Za-z]+/)) {
+    const key = part.toUpperCase().replace(/[^A-Z]/g, "");
+    if (key.length >= 2 && surnameTable[key]) {
+      const v = Number(surnameTable[key][category] || 0);
+      if (v > best) best = v;
+    }
+  }
+  return best;
+}
 const WEBLLM_CDN = "https://esm.sh/@mlc-ai/web-llm@0.2.79";
 
 const SYSTEM_PROMPT = `You are the P7-HS Roster Query Compiler, a precise student roster query engine.
@@ -27,6 +67,7 @@ Given a user's natural language request to filter a school roster, output ONLY a
   "id_contains": string of digits or null,
   "hyphenated_last": boolean,
   "double_letters_in_last": boolean,
+  "race_likely": one of "white" | "black" | "asian" | "hispanic" | "native" | "multi" or null (only when the user asks for a background),
   "explanation": "A crisp 1-sentence summary of the filter criteria applied."
 }
 Important rules:
@@ -34,7 +75,8 @@ Important rules:
 2. If the user mentions "boy", "boys", "male", "his", "him", "guy", set "gender": "boy".
 3. If the user mentions "girl", "girls", "female", "her", "she", set "gender": "girl".
 4. If the user mentions "ms masch" or "masch", set "homeroom_teacher": "Mascheroni".
-5. Output ONLY raw JSON, no markdown fences.`;
+5. Output ONLY raw JSON, no markdown fences.
+6. Only set "race_likely" when the user explicitly asks for a background (race, ethnicity, asian, black, white, hispanic, latino).`;
 
 function blankSpan(text, start, end) {
   return text.slice(0, start) + " ".repeat(end - start) + text.slice(end);
@@ -60,6 +102,7 @@ export function heuristicSpec(prompt) {
     last_name_starts_with: null,
     last_name_ends_with: null,
     id_contains: null,
+    race_likely: null,
     hyphenated_last: false,
     hyphenated_first: false,
     double_letters_in_last: false,
@@ -119,6 +162,24 @@ export function heuristicSpec(prompt) {
   m = p.match(/\bid\s+(?:number\s+)?(?:containing|with|starts\s+with|ending\s+in|is)?\s*([0-9]{2,8})\b/d);
   if (m) { spec.id_contains = m[1]; grab(m, 1); }
 
+  if (/\b(race|races|ethnicity|ethnic|background|surname|surnames|last\s+name|student|students)\b/.test(p)) {
+    for (const [phrase, category] of Object.entries(RACE_PHRASES)) {
+      const m = p.match(new RegExp(`\\b${phrase}\\b`, "d"));
+      if (m) { spec.race_likely = category; grab(m); break; }
+    }
+    if (!spec.race_likely) {
+      for (const [alias, category] of Object.entries(RACE_LABELS)) {
+        if (alias === "multi") continue;
+        const m = p.match(new RegExp(`\\b${alias}\\b`, "d"));
+        if (m) { spec.race_likely = category; grab(m, 0); break; }
+      }
+    }
+    if (!spec.race_likely && /\b(race|ethnicity|ethnic)\b/.test(p)) {
+      const m = p.match(/\bmixed\b/d);
+      if (m) { spec.race_likely = "multi"; grab(m); }
+    }
+  }
+
   if (/\b(boy|boys|male|males|guy|guys|he|his|him|son)\b/.test(scrubbed)) spec.gender = "boy";
   else if (/\b(girl|girls|female|females|gal|gals|she|her|hers|daughter)\b/.test(scrubbed)) spec.gender = "girl";
 
@@ -164,6 +225,8 @@ export function mergeSpecs(llm, heur) {
     const v = (heur && heur[key]) || (llm && llm[key]);
     merged[key] = v ? String(v).toLowerCase().trim() : null;
   }
+  const llmRace = String((llm && llm.race_likely) || "").toLowerCase().trim();
+  merged.race_likely = (heur && heur.race_likely) || (Object.values(RACE_LABELS).includes(llmRace) ? llmRace : null);
   merged.hyphenated_last = Boolean((heur && heur.hyphenated_last) || (llm && llm.hyphenated_last));
   merged.hyphenated_first = Boolean(heur && heur.hyphenated_first);
   merged.double_letters_in_last = Boolean((heur && heur.double_letters_in_last) || (llm && llm.double_letters_in_last));
@@ -189,6 +252,8 @@ export function applySpec(students, spec) {
     if (spec.last_name_starts_with && !last.startsWith(spec.last_name_starts_with)) continue;
     if (spec.last_name_ends_with && !last.endsWith(spec.last_name_ends_with)) continue;
     if (spec.id_contains && !sid.includes(spec.id_contains)) continue;
+    const racePct = spec.race_likely ? surnameCategoryPct(s.last_name, spec.race_likely) : 0;
+    if (spec.race_likely && racePct < RACE_MIN_PCT) continue;
     if (spec.hyphenated_last && !last.includes("-")) continue;
     if (spec.hyphenated_first && !first.includes("-")) continue;
     if (spec.double_letters_in_last && !/([a-z])\1/.test(last)) continue;
@@ -200,6 +265,7 @@ export function applySpec(students, spec) {
     for (const sub of spec.last_name_contains || []) reasons.push(`Last has '${sub.toUpperCase()}'`);
     if (spec.first_name_starts_with) reasons.push(`First starts '${spec.first_name_starts_with.toUpperCase()}'`);
     if (spec.last_name_starts_with) reasons.push(`Last starts '${spec.last_name_starts_with.toUpperCase()}'`);
+    if (spec.race_likely) reasons.push(`Surname suggests ${spec.race_likely[0].toUpperCase() + spec.race_likely.slice(1)} (${Math.round(racePct)}%)`);
     out.push({ ...s, match_reasons: reasons });
   }
   return out;
@@ -282,6 +348,7 @@ export async function queryBrowserLLM(prompt, onProgress) {
    same zero-hit guard as the server. */
 export async function clientFilterFlow(students, prompt, { useBrowserAI, log } = {}) {
   const t0 = performance.now();
+  await ensureSurnameTable();
   const heur = heuristicSpec(prompt);
   let llm = {};
   let llmOk = false;

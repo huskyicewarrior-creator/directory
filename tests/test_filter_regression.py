@@ -91,5 +91,29 @@ check("fenced JSON salvaged", parsed.get("gender") == "girl", f"got {parsed}")
 check("empty string salvages to {}", salvage_llm_json("") == {})
 check("chatter prefix salvaged", salvage_llm_json('Sure! {"gender": null}') .get("gender") is None)
 
+# 9. Likely-background search (Census surname statistics, 60%+ bar)
+race_cases = [
+    ("asian students", "asian"),
+    ("hispanic students", "hispanic"),
+    ("white students", "white"),
+    ("black students", "black"),
+    ("girls with likely asian surnames", "asian"),
+    ("race hispanic in Oshiro homeroom", "hispanic"),
+]
+for prompt, category in race_cases:
+    heur_r = heuristic_parse_prompt(prompt)
+    check(f"race parsed :: {prompt[:40]}", heur_r.get("race_likely") == category, f"got {heur_r.get('race_likely')}")
+    merged_r = merge_specs({}, heur_r)
+    hits_r = apply_filter_spec(STUDENTS_CACHE, merged_r)
+    check(f"race nonzero + badges :: {prompt[:40]}", len(hits_r) > 0 and all("Surname suggests" in " ".join(s.get("match_reasons", [])) for s in hits_r), f"n={len(hits_r)}")
+
+n_asian, _ = count_for("asian students")
+check("asian count == 85", n_asian == 85, f"got {n_asian}")
+n_comb, spec_comb = count_for("race hispanic in Oshiro homeroom")
+check("hispanic Oshiro count == 4", n_comb == 4, f"got {n_comb}")
+check("race composes with teacher", spec_comb.get("homeroom_teacher") == "Oshiro")
+_, spec_nb = count_for("boys in Turnipseed's homeroom")
+check("no race leak into plain query", spec_nb.get("race_likely") is None)
+
 print(f"\n{len(PASS)} passed, {len(FAIL)} failed.")
 sys.exit(1 if FAIL else 0)

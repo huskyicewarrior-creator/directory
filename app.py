@@ -68,6 +68,55 @@ ALL_TEACHERS = [
     "Makhoul", "Mascheroni", "Oshiro", "Staley", "Turnipseed", "Velarde", "Wild"
 ]
 
+# Probabilistic surname background: US Census 2010 surname percentages.
+# These are statistics about US bearers of a surname, NOT facts about any student.
+RACE_MIN_PCT = 60.0
+RACE_LABELS = {
+    "white": "white",
+    "black": "black",
+    "asian": "asian",
+    "hispanic": "hispanic", "latino": "hispanic", "latina": "hispanic",
+    "latinx": "hispanic", "latine": "hispanic",
+    "native": "native", "indigenous": "native",
+    "multi": "multi", "multiracial": "multi",
+}
+RACE_PHRASES = {
+    "native american": "native", "american indian": "native",
+    "mixed race": "multi",
+}
+
+
+def load_surname_table() -> Dict[str, Dict[str, float]]:
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    for candidate in (os.path.join(base_dir, "static", "surname_race.json"),
+                      os.path.join(base_dir, "surname_race.json")):
+        if os.path.exists(candidate):
+            with open(candidate, "r", encoding="utf-8") as f:
+                return json.load(f).get("surnames", {})
+    return {}
+
+
+SURNAME_RACE = load_surname_table()
+
+
+def surname_part_probs(last: str) -> List[tuple]:
+    found = []
+    for part in re.split(r"[^A-Za-z]+", last or ""):
+        key = re.sub(r"[^A-Z]", "", part.upper())
+        if len(key) >= 2 and key in SURNAME_RACE:
+            found.append((part, SURNAME_RACE[key]))
+    return found
+
+
+def surname_category_pct(last: str, category: str) -> float:
+    best = 0.0
+    for _, dist in surname_part_probs(last):
+        try:
+            best = max(best, float(dist.get(category, 0.0) or 0.0))
+        except (TypeError, ValueError):
+            continue
+    return best
+
 
 def load_students() -> List[Dict[str, Any]]:
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -162,6 +211,7 @@ def heuristic_parse_prompt(prompt: str) -> Dict[str, Any]:
         "last_name_ends_with": None,
         "id_contains": None,
         "name_contains": [],
+        "race_likely": None,
         "double_letters_in_last": False,
         "double_letters_in_first": False,
         "hyphenated_last": False,
@@ -286,6 +336,30 @@ def heuristic_parse_prompt(prompt: str) -> Dict[str, Any]:
         spec["id_contains"] = m_id.group(1)
         grab(m_id)
 
+    # Likely background from Census surname statistics (probabilistic, never a fact).
+    # Matches "asian students", "race hispanic", "likely white surnames", etc.
+    if re.search(r"\b(race|races|ethnicity|ethnic|background|surname|surnames|last\s+name|student|students)\b", p):
+        for phrase, category in RACE_PHRASES.items():
+            m_rp = re.search(r"\b" + re.escape(phrase) + r"\b", p)
+            if m_rp:
+                spec["race_likely"] = category
+                grab(m_rp)
+                break
+        if not spec["race_likely"]:
+            for alias, category in RACE_LABELS.items():
+                if alias in ("multi",):
+                    continue
+                m_rl = re.search(r"\b" + re.escape(alias) + r"\b", p)
+                if m_rl:
+                    spec["race_likely"] = category
+                    grab(m_rl, 0)
+                    break
+        if not spec["race_likely"] and re.search(r"\b(race|ethnicity|ethnic)\b", p):
+            m_mx = re.search(r"\bmixed\b", p)
+            if m_mx:
+                spec["race_likely"] = "multi"
+                grab(m_mx)
+
     # Gender detection LAST, on text with letter-value spans scrubbed out,
     # so values like "son" (ends with son) never leak into gender.
     if re.search(r"\b(boy|boys|male|males|guy|guys|he|his|him|son)\b", scrubbed):
@@ -314,6 +388,7 @@ Given a user's natural language request to filter a school roster, output ONLY a
   "max_last_name_length": integer or null,
   "hyphenated_last": boolean,
   "double_letters_in_last": boolean,
+  "race_likely": one of "white" | "black" | "asian" | "hispanic" | "native" | "multi" or null (only when the user asks for a background, e.g. "asian students" means "asian"),
   "explanation": "A crisp, futuristic 1-sentence summary of the neural filter criteria applied."
 }
 Important rules:
@@ -321,7 +396,9 @@ Important rules:
 2. If the user mentions "boy", "boys", "male", "his", "him", "guy", set "gender": "boy".
 3. If the user mentions "girl", "girls", "female", "her", "she", set "gender": "girl".
 4. If the user mentions "ms masch" or "masch", set "homeroom_teacher": "Mascheroni".
-5. Output ONLY raw JSON, no markdown fences."""
+5. Output ONLY raw JSON, no markdown fences.
+6. Only set "race_likely" when the user explicitly asks for a background (race, ethnicity, asian, black, white, hispanic, latino).
+6. Only set "race_likely" when the user explicitly asks for a background (race, ethnicity, asian, black, white, hispanic, latino)."""
 
 
 def salvage_llm_json(content: str) -> Dict[str, Any]:
@@ -470,6 +547,8 @@ def merge_specs(llm_spec: Dict[str, Any], heur_spec: Dict[str, Any]) -> Dict[str
         val = llm_spec.get(num_key)
         merged[num_key] = int(val) if isinstance(val, (int, float)) and val > 0 else None
 
+    llm_race = str(llm_spec.get("race_likely") or "").lower().strip()
+    merged["race_likely"] = heur_spec.get("race_likely") or (llm_race if llm_race in RACE_LABELS.values() else None)
     merged["hyphenated_last"] = bool(heur_spec.get("hyphenated_last") or llm_spec.get("hyphenated_last"))
     merged["hyphenated_first"] = bool(heur_spec.get("hyphenated_first"))
     merged["double_letters_in_last"] = bool(heur_spec.get("double_letters_in_last") or llm_spec.get("double_letters_in_last"))
@@ -520,6 +599,11 @@ def apply_filter_spec(students: List[Dict[str, Any]], spec: Dict[str, Any]) -> L
         if spec.get("id_contains") and spec["id_contains"] not in sid:
             continue
 
+        # Likely background: Census surname probability must clear the bar
+        race_pct = surname_category_pct(s["last_name"], spec["race_likely"]) if spec.get("race_likely") else 0.0
+        if spec.get("race_likely") and race_pct < RACE_MIN_PCT:
+            continue
+
         # Lengths
         if spec.get("min_first_name_length") and len(first_l) < spec["min_first_name_length"]:
             continue
@@ -556,6 +640,8 @@ def apply_filter_spec(students: List[Dict[str, Any]], spec: Dict[str, Any]) -> L
             reasons.append(f"First starts '{spec['first_name_starts_with'].upper()}'")
         if spec.get("last_name_starts_with"):
             reasons.append(f"Last starts '{spec['last_name_starts_with'].upper()}'")
+        if spec.get("race_likely"):
+            reasons.append(f"Surname suggests {spec['race_likely'].title()} ({race_pct:.0f}%)")
 
         s_copy = dict(s)
         s_copy["match_reasons"] = reasons
@@ -646,6 +732,7 @@ def ai_filter(req: AIQueryRequest):
         merged_spec.get("max_first_name_length"),
         merged_spec.get("min_last_name_length"),
         merged_spec.get("max_last_name_length"),
+        merged_spec.get("race_likely"),
         merged_spec.get("hyphenated_last"),
         merged_spec.get("hyphenated_first"),
         merged_spec.get("double_letters_in_last"),

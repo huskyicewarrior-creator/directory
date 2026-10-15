@@ -1356,6 +1356,12 @@
           <button class="tactile-btn preset-chip" type="button" data-prompt="students with double letters in their last name in Ervin's homeroom">
             Double-Letter Last Names in Ervin
           </button>
+          <button class="tactile-btn preset-chip" type="button" data-prompt="asian students">
+            Likely Asian Surnames
+          </button>
+          <button class="tactile-btn preset-chip" type="button" data-prompt="hispanic students">
+            Likely Hispanic Surnames
+          </button>
         </div>
       </div>
     </section>
@@ -1414,6 +1420,10 @@
       </div>
 
       <div class="teacher-scroll-strip" id="teacherPillsRow" role="tablist" aria-label="Homeroom Teachers"></div>
+
+      <p class="directory-sub" style="font-size:0.78rem; font-family:'JetBrains Mono',monospace;">
+        Background search is statistical: US Census surname percentages, 60%+ match bar, shown per student. Estimates, never facts about any individual.
+      </p>
 
       <div id="rosterMatrix" class="roster-matrix"></div>
     </section>
@@ -1932,6 +1942,7 @@
       }
       if (spec.first_name_starts_with) tags.push(`First starts '${spec.first_name_starts_with}'`);
       if (spec.last_name_starts_with) tags.push(`Last starts '${spec.last_name_starts_with}'`);
+      if (spec.race_likely) tags.push(`Likely ${spec.race_likely[0].toUpperCase() + spec.race_likely.slice(1)} surnames (60%+)`);
       if (spec.hyphenated_last) tags.push('Hyphenated Last Name');
       if (spec.double_letters_in_last) tags.push('Double-Letter Last Name');
 
