@@ -1,0 +1,23 @@
+# Local-only sources: bulk OCR plates, HEIC originals, python backend, logs
+*.HEIC
+*.heic
+*.log
+*.db
+__pycache__/
+.freebuff/
+ocr/
+bands/
+bands_3895/
+rows/
+nc/
+tests/
+app.py
+start.bat
+start.sh
+roster.csv
+roster.md
+roster_rows.json
+students_final.json
+students_pool.json
+pages_parsed.json
+parsed_portrait.json

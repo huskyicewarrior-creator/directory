@@ -1,0 +1,2672 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <script>
+    try {
+      var savedTheme = localStorage.getItem('p7hs-theme');
+      if (savedTheme === 'light' || savedTheme === 'dark') {
+        document.documentElement.setAttribute('data-theme', savedTheme);
+      }
+    } catch (e) {}
+  </script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>P7-HS Archive / Local LLM Roster Index</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+  <style>
+    /* =====================================================================
+       DESIGN SYSTEM TOKENS (Graphite & Off-Black / Zero Purple / Dual Mode)
+       DESIGN_VARIANCE: 7 | MOTION_INTENSITY: 7 | VISUAL_DENSITY: 4
+       ===================================================================== */
+    [data-theme="dark"] {
+      --bg-base: #0a0a0c;
+      --bg-surface: #121215;
+      --bg-elevated: #18181c;
+      --bg-glass: rgba(20, 20, 24, 0.78);
+      --bg-input: #0e0e11;
+      --border-subtle: #242429;
+      --border-strong: #383840;
+      --border-focus: #d4d4d8;
+      --text-primary: #f4f4f5;
+      --text-secondary: #a1a1aa;
+      --text-muted: #71717a;
+      --accent-solid: #f4f4f5;
+      --accent-solid-fg: #09090b;
+      --accent-tint: rgba(244, 244, 245, 0.08);
+      --accent-sheen: rgba(255, 255, 255, 0.06);
+      --shadow-ambient: 0 24px 60px -15px rgba(0, 0, 0, 0.75);
+      --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+      --radius-std: 12px;
+      --ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
+      --ease-in-out-quart: cubic-bezier(0.76, 0, 0.24, 1);
+    }
+
+    [data-theme="light"] {
+      --bg-base: #f4f4f5;
+      --bg-surface: #ffffff;
+      --bg-elevated: #e4e4e7;
+      --bg-glass: rgba(255, 255, 255, 0.85);
+      --bg-input: #fafafa;
+      --border-subtle: #d4d4d8;
+      --border-strong: #a1a1aa;
+      --border-focus: #18181b;
+      --text-primary: #18181b;
+      --text-secondary: #52525b;
+      --text-muted: #71717a;
+      --accent-solid: #18181b;
+      --accent-solid-fg: #fafafa;
+      --accent-tint: rgba(24, 24, 27, 0.06);
+      --accent-sheen: rgba(24, 24, 27, 0.04);
+      --shadow-ambient: 0 20px 50px -15px rgba(24, 24, 27, 0.12);
+      --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    }
+
+    @media (prefers-reduced-transparency: reduce) {
+      :root, [data-theme="dark"] {
+        --bg-glass: #141418;
+      }
+      [data-theme="light"] {
+        --bg-glass: #ffffff;
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      min-height: 100dvh;
+      background-color: var(--bg-base);
+      background-image: radial-gradient(ellipse 80% 50% at 50% -15%, rgba(255, 255, 255, 0.045), transparent 70%);
+      color: var(--text-primary);
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      line-height: 1.5;
+      overflow-x: hidden;
+      transition: background-color 650ms var(--ease-out-expo), color 650ms var(--ease-out-expo);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Fixed Pointer-Events-None Hardware Grain Layer (Section 6.E) */
+    .noise-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 60;
+      pointer-events: none;
+      opacity: 0.028;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+
+    /* Passcode Gate Overlay (front door, not real auth) */
+    .gate-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: var(--bg-base);
+      transition: opacity 500ms var(--ease-out-expo);
+    }
+
+    .gate-overlay.is-cleared {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .gate-card {
+      width: 100%;
+      max-width: 380px;
+      border-radius: var(--radius-std);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-strong);
+      box-shadow: var(--shadow-ambient);
+      padding: 32px 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      text-align: center;
+      align-items: center;
+    }
+
+    .gate-card.shake {
+      animation: gateShake 420ms var(--ease-out-expo);
+    }
+
+    @keyframes gateShake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-7px); }
+      50% { transform: translateX(6px); }
+      75% { transform: translateX(-3px); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .gate-card.shake { animation: none; }
+    }
+
+    .gate-error {
+      min-height: 1.4em;
+      font-size: 0.82rem;
+      color: #e11d48;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Controlled Click Ripple Canvas */
+    #rippleCanvas {
+      position: fixed;
+      inset: 0;
+      z-index: 55;
+      pointer-events: none;
+    }
+
+    .page-shell {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0 28px 96px;
+    }
+
+    @media (max-width: 767px) {
+      .page-shell {
+        width: 100%;
+        padding: 0 16px 64px;
+      }
+    }
+
+    /* =====================================================================
+       NAVIGATION (Single Line, Height <= 80px)
+       ===================================================================== */
+    .top-nav {
+      height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      border-bottom: 1px solid var(--border-subtle);
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      background: var(--bg-glass);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      margin: 0 -28px;
+      padding: 0 28px;
+      transition: background-color 550ms var(--ease-out-expo), border-color 550ms var(--ease-out-expo);
+    }
+
+    @media (max-width: 767px) {
+      .top-nav {
+        margin: 0 -16px;
+        padding: 0 16px;
+        height: 68px;
+      }
+    }
+
+    .brand-cluster {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 0;
+    }
+
+    .brand-monogram {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-std);
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-strong);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      font-size: 0.82rem;
+      color: var(--text-primary);
+      box-shadow: var(--shadow-inset);
+      flex-shrink: 0;
+    }
+
+    .brand-name {
+      font-weight: 700;
+      font-size: 1.02rem;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
+      white-space: nowrap;
+    }
+
+    .brand-meta {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    @media (max-width: 900px) {
+      .brand-meta {
+        display: none;
+      }
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    /* =====================================================================
+       SLOWER, CONTROLLED, HIGH-CRAFT TACTILE BUTTONS (Radius 12px Lock)
+       ===================================================================== */
+    .tactile-btn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      height: 40px;
+      padding: 0 16px;
+      border-radius: var(--radius-std);
+      font-family: 'Outfit', sans-serif;
+      font-weight: 500;
+      font-size: 0.86rem;
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+      color: var(--text-primary);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      box-shadow: var(--shadow-inset);
+      cursor: pointer;
+      overflow: hidden;
+      isolation: isolate;
+      transform: translate3d(var(--tx, 0px), var(--ty, 0px), 0) scale(var(--sc, 1));
+      transition:
+        transform 560ms var(--ease-out-expo),
+        border-color 520ms var(--ease-out-expo),
+        background-color 520ms var(--ease-out-expo),
+        color 420ms var(--ease-out-expo),
+        box-shadow 560ms var(--ease-out-expo);
+      will-change: transform;
+    }
+
+    /* Cursor-Tracked Radial Sheen Inside Button */
+    .tactile-btn::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      background: radial-gradient(
+        150px circle at var(--mx, 50%) var(--my, 50%),
+        var(--accent-sheen),
+        transparent 75%
+      );
+      opacity: 0;
+      transition: opacity 550ms var(--ease-out-expo);
+      pointer-events: none;
+    }
+
+    /* Top Edge Specular Rim Sweep */
+    .tactile-btn::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 12%;
+      right: 12%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+      opacity: 0;
+      transform: scaleX(0.4);
+      transition: opacity 600ms var(--ease-out-expo), transform 650ms var(--ease-out-expo);
+      pointer-events: none;
+    }
+
+    .tactile-btn:hover {
+      border-color: var(--border-strong);
+      background: var(--bg-elevated);
+    }
+
+    .tactile-btn:hover::before {
+      opacity: 1;
+    }
+
+    .tactile-btn:hover::after {
+      opacity: 1;
+      transform: scaleX(1);
+    }
+
+    .tactile-btn:active,
+    .tactile-btn.is-pressed {
+      --sc: 0.975;
+      transition-duration: 160ms;
+    }
+
+    /* Primary Solid High-Contrast Button (WCAG AAA Contrast) */
+    .tactile-btn.primary {
+      background: var(--accent-solid);
+      color: var(--accent-solid-fg);
+      border-color: var(--accent-solid);
+      font-weight: 600;
+      height: 44px;
+      padding: 0 22px;
+    }
+
+    .tactile-btn.primary::before {
+      background: radial-gradient(
+        160px circle at var(--mx, 50%) var(--my, 50%),
+        rgba(120, 120, 128, 0.25),
+        transparent 75%
+      );
+    }
+
+    .tactile-btn.primary:hover {
+      opacity: 0.94;
+      border-color: var(--text-secondary);
+    }
+
+    .tactile-btn.active-state {
+      border-color: var(--border-focus);
+      background: var(--bg-elevated);
+      box-shadow: inset 0 0 0 1px var(--border-focus);
+    }
+
+    /* Styled Select Control */
+    .select-wrapper {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .tactile-select {
+      appearance: none;
+      height: 40px;
+      padding: 0 34px 0 14px;
+      border-radius: var(--radius-std);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-primary);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      font-weight: 500;
+      cursor: pointer;
+      outline: none;
+      transition: border-color 500ms var(--ease-out-expo), background-color 500ms var(--ease-out-expo);
+    }
+
+    .tactile-select:hover,
+    .tactile-select:focus {
+      border-color: var(--border-focus);
+      background: var(--bg-elevated);
+    }
+
+    .select-chevron {
+      position: absolute;
+      right: 12px;
+      pointer-events: none;
+      color: var(--text-secondary);
+      font-size: 0.8rem;
+    }
+
+    /* =====================================================================
+       SECTION 1: ASYMMETRIC SPLIT HERO + COMMAND CONSOLE (Fits Viewport)
+       Max 4 text elements in hero left: Eyebrow (1), Headline (2), Subtext (3), CTAs (4)
+       ===================================================================== */
+    .hero-split {
+      padding-top: 48px;
+      padding-bottom: 56px;
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: 48px;
+      align-items: center;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    @media (max-width: 1024px) {
+      .hero-split {
+        grid-template-columns: 1fr;
+        gap: 36px;
+        padding-top: 32px;
+      }
+    }
+
+    .hero-copy {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 20px;
+    }
+
+    /* Mechanical Eyebrow #1 (Only 1 eyebrow allowed across the 3 sections) */
+    .eyebrow-tag {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.74rem;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: var(--text-secondary);
+      padding: 5px 11px;
+      border-radius: var(--radius-std);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .hero-headline {
+      font-size: clamp(2rem, 3.1vw, 2.75rem);
+      font-weight: 600;
+      letter-spacing: -0.035em;
+      line-height: 1.12;
+      color: var(--text-primary);
+      max-width: 22ch;
+    }
+
+    .hero-headline em {
+      font-style: italic;
+      font-weight: 500;
+      line-height: 1.12;
+      padding-bottom: 4px;
+      color: var(--text-secondary);
+    }
+
+    .hero-subtext {
+      font-size: 1.04rem;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      max-width: 52ch;
+    }
+
+    .command-form-card {
+      width: 100%;
+      margin-top: 4px;
+      padding: 20px;
+      border-radius: var(--radius-std);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      box-shadow: var(--shadow-ambient), var(--shadow-inset);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      transition: border-color 550ms var(--ease-out-expo);
+    }
+
+    .command-form-card:focus-within {
+      border-color: var(--border-focus);
+    }
+
+    .field-block {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .field-label {
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: var(--text-primary);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .field-helper {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.74rem;
+      color: var(--text-secondary);
+    }
+
+    .prompt-input {
+      width: 100%;
+      height: 48px;
+      padding: 0 16px;
+      border-radius: var(--radius-std);
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-primary);
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.98rem;
+      outline: none;
+      transition: border-color 480ms var(--ease-out-expo), box-shadow 480ms var(--ease-out-expo);
+    }
+
+    .prompt-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .prompt-input:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px var(--accent-tint);
+    }
+
+    .cta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    /* Right Hero Column: Real Archival Roster Sheet Visual + Preset Queries */
+    .hero-visual-col {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .archive-media-frame {
+      position: relative;
+      border-radius: var(--radius-std);
+      overflow: hidden;
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-surface);
+      aspect-ratio: 16 / 10;
+      box-shadow: var(--shadow-ambient);
+    }
+
+    .archive-media-frame img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      filter: grayscale(100%) contrast(1.08) brightness(0.88);
+      transform: scale(1.01);
+      transition: transform 900ms var(--ease-out-expo), filter 900ms var(--ease-out-expo);
+    }
+
+    .archive-media-frame:hover img {
+      transform: scale(1.04);
+      filter: grayscale(100%) contrast(1.12) brightness(0.95);
+    }
+
+    .archive-caption {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .preset-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .preset-chip {
+      height: 36px;
+      padding: 0 13px;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+
+    .preset-chip:hover {
+      color: var(--text-primary);
+    }
+
+    /* =====================================================================
+       SECTION 2: ASYMMETRIC 3-CELL BENTO TELEMETRY GRID (Section 4.7)
+       Exact 3 cells for 3 items, varied background materiality
+       ===================================================================== */
+    .bento-section {
+      padding: 40px 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .bento-grid {
+      display: grid;
+      grid-template-columns: 1.5fr 0.85fr 0.85fr;
+      gap: 16px;
+    }
+
+    @media (max-width: 960px) {
+      .bento-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .bento-cell {
+      border-radius: var(--radius-std);
+      padding: 22px 24px;
+      border: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 14px;
+      transition: border-color 550ms var(--ease-out-expo), transform 550ms var(--ease-out-expo);
+    }
+
+    /* Cell 1: Tinted Carbon Gradient */
+    .bento-cell.cell-primary {
+      background: linear-gradient(135deg, var(--bg-surface) 0%, var(--bg-elevated) 100%);
+      box-shadow: var(--shadow-inset);
+    }
+
+    /* Cell 2: Crisp Technical Dot Matrix Pattern */
+    .bento-cell.cell-pattern {
+      background-color: var(--bg-surface);
+      background-image: radial-gradient(var(--border-strong) 1px, transparent 1px);
+      background-size: 16px 16px;
+    }
+
+    /* Cell 3: Elevated Solid Surface */
+    .bento-cell.cell-elevated {
+      background: var(--bg-elevated);
+    }
+
+    .bento-title {
+      font-size: 0.84rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    .bento-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.65rem;
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      color: var(--text-primary);
+    }
+
+    .bento-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .filter-pill {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      padding: 4px 10px;
+      border-radius: 8px;
+      background: var(--bg-base);
+      border: 1px solid var(--border-strong);
+      color: var(--text-primary);
+    }
+
+    /* =====================================================================
+       SECTION 3: DIRECTORY FILTER BAR & STAGGERED ROSTER MATRIX
+       ===================================================================== */
+    .directory-section {
+      padding-top: 40px;
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+    }
+
+    .directory-header {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .directory-title {
+      font-size: 1.65rem;
+      font-weight: 600;
+      letter-spacing: -0.025em;
+      color: var(--text-primary);
+    }
+
+    .directory-sub {
+      font-size: 0.94rem;
+      color: var(--text-secondary);
+      max-width: 65ch;
+    }
+
+    .directory-controls {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 16px;
+      align-items: end;
+      padding: 20px;
+      border-radius: var(--radius-std);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+    }
+
+    @media (max-width: 767px) {
+      .directory-controls {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* SECTION 4: COMING SOON VISUAL TRAIT SEARCH (monochrome, single radius system) */
+    .trait-section {
+      padding-top: 40px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .trait-grid {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 14px;
+    }
+
+    @media (max-width: 767px) {
+      .trait-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .trait-panel {
+      border-radius: var(--radius-std);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .trait-panel.elevated {
+      background: var(--bg-elevated);
+      border-color: var(--border-strong);
+    }
+
+    .coming-soon-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent-solid-fg);
+      background: var(--accent-solid);
+      border-radius: 8px;
+      padding: 3px 10px;
+      align-self: flex-start;
+    }
+
+    .trait-tiles {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+
+    @media (max-width: 767px) {
+      .trait-tiles {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .trait-tile {
+      border-radius: var(--radius-std);
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-base);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+    }
+
+    .trait-tile strong {
+      color: var(--text-primary);
+      font-size: 0.86rem;
+    }
+
+    .trait-tile i {
+      font-size: 1.2rem;
+      color: var(--text-primary);
+    }
+
+    .toast-note {
+      position: fixed;
+      bottom: 22px;
+      left: 50%;
+      transform: translateX(-50%) translateY(12px);
+      background: var(--accent-solid);
+      color: var(--accent-solid-fg);
+      font-size: 0.85rem;
+      padding: 10px 18px;
+      border-radius: 8px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 400ms var(--ease-out-expo), transform 400ms var(--ease-out-expo);
+      z-index: 70;
+    }
+
+    .toast-note.is-visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* Horizontal Scroll-Snap Teacher Pills (Section 4.9) */
+    .teacher-scroll-strip {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      scroll-snap-type: x mandatory;
+      scrollbar-width: none;
+    }
+    .teacher-scroll-strip::-webkit-scrollbar {
+      display: none;
+    }
+
+    .teacher-scroll-strip .tactile-btn {
+      scroll-snap-align: start;
+      flex-shrink: 0;
+      height: 36px;
+      padding: 0 13px;
+      font-size: 0.8rem;
+    }
+
+    .count-tag {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--text-secondary);
+      padding: 1px 6px;
+      border-radius: 6px;
+      background: var(--bg-base);
+      border: 1px solid var(--border-subtle);
+    }
+
+    /* Hairline Grid Matrix for Student Records (Clean architectural dividing lines) */
+    .roster-matrix {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+      gap: 14px;
+    }
+
+    @media (max-width: 767px) {
+      .roster-matrix {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .student-row-card {
+      position: relative;
+      padding: 20px 22px;
+      border-radius: var(--radius-std);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      cursor: pointer;
+      opacity: 0;
+      transform: translateY(16px);
+      animation: slowReveal 680ms var(--ease-out-expo) forwards;
+      transition:
+        transform 580ms var(--ease-out-expo),
+        border-color 520ms var(--ease-out-expo),
+        background-color 520ms var(--ease-out-expo),
+        box-shadow 580ms var(--ease-out-expo);
+    }
+
+    @keyframes slowReveal {
+      0% {
+        opacity: 0;
+        transform: translateY(16px);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .student-row-card:hover {
+      transform: translateY(-3px);
+      border-color: var(--border-strong);
+      background: var(--bg-elevated);
+      box-shadow: var(--shadow-ambient);
+    }
+
+    .student-row-card:active {
+      transform: translateY(-1px) scale(0.99);
+      transition-duration: 150ms;
+    }
+
+    .row-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .mono-id {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      padding: 3px 9px;
+      border-radius: 8px;
+      background: var(--bg-base);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .gender-pill {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-secondary);
+      padding: 2px 8px;
+      border-radius: 8px;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .student-fullname {
+      font-size: 1.2rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
+    }
+
+    .student-fullname .last-part {
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .matched-glyph {
+      background: var(--accent-solid);
+      color: var(--accent-solid-fg);
+      font-weight: 700;
+      padding: 0 4px;
+      border-radius: 4px;
+      margin: 0 1px;
+      display: inline-block;
+    }
+
+    .row-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 10px;
+      border-top: 1px solid var(--border-subtle);
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+    }
+
+    .reason-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .reason-tag {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      border-radius: 6px;
+      background: var(--accent-tint);
+      border: 1px solid var(--border-strong);
+      color: var(--text-primary);
+    }
+
+    /* Empty & Error States (Section 4.5) */
+    .empty-state-box {
+      grid-column: 1 / -1;
+      padding: 64px 24px;
+      border-radius: var(--radius-std);
+      background: var(--bg-surface);
+      border: 1px dashed var(--border-strong);
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+
+    /* =====================================================================
+       SLOWER, CONTROLLED CHRONOGRAPH AI OVERLAY & MONOCHROME ARCADE
+       ===================================================================== */
+    .chronograph-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      background: rgba(8, 8, 10, 0.86);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 650ms var(--ease-out-expo);
+    }
+
+    .chronograph-modal.is-open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-grid {
+      width: 100%;
+      max-width: 1180px;
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 20px;
+      transform: translateY(18px) scale(0.98);
+      transition: transform 680ms var(--ease-out-expo);
+    }
+
+    .chronograph-modal.is-open .modal-grid {
+      transform: translateY(0) scale(1);
+    }
+
+    @media (max-width: 960px) {
+      .modal-grid {
+        grid-template-columns: 1fr;
+        max-height: 92dvh;
+        overflow-y: auto;
+      }
+    }
+
+    .chrono-panel,
+    .arcade-panel {
+      border-radius: var(--radius-std);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-strong);
+      box-shadow: var(--shadow-ambient), var(--shadow-inset);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 18px;
+    }
+
+    /* Architectural Precision Chronograph Dial (Slow, Deliberate Rotation) */
+    .dial-housing {
+      width: 176px;
+      height: 176px;
+      margin: 8px auto;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .dial-ring-outer {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 1px solid var(--border-strong);
+    }
+
+    .dial-ring-ticks {
+      position: absolute;
+      inset: 10px;
+      border-radius: 50%;
+      border: 1px dashed var(--text-muted);
+      animation: slowDialRotate 16s linear infinite;
+    }
+
+    .dial-ring-sweep {
+      position: absolute;
+      inset: 24px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      border-top-color: var(--text-primary);
+      border-right-color: var(--text-secondary);
+      animation: slowDialRotate 3.6s var(--ease-in-out-quart) infinite;
+    }
+
+    .dial-center-readout {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      letter-spacing: -0.02em;
+    }
+
+    @keyframes slowDialRotate {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .chrono-status-title {
+      font-size: 1.05rem;
+      font-weight: 600;
+      text-align: center;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+    }
+
+    .chrono-log-box {
+      width: 100%;
+      height: 148px;
+      padding: 14px;
+      border-radius: var(--radius-std);
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.74rem;
+      color: var(--text-secondary);
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .chrono-log-line.complete {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    .reveal-banner {
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+      padding: 14px;
+      border-radius: var(--radius-std);
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-focus);
+      text-align: center;
+    }
+
+    /* Monochrome High-Contrast Arcade Stage */
+    .arcade-top {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .arcade-canvas-wrap {
+      width: 100%;
+      height: 390px;
+      border-radius: var(--radius-std);
+      background: #08080a;
+      border: 1px solid var(--border-strong);
+      overflow: hidden;
+      position: relative;
+    }
+
+    #arcadeCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .arcade-footer {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+    }
+
+    /* Reduced Motion Guardrail (Section 6.B) */
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Passcode Gate: enter "admin" to view the archive -->
+  <div id="gateOverlay" class="gate-overlay" role="dialog" aria-modal="true" aria-labelledby="gateTitle">
+    <div class="gate-card" id="gateCard">
+      <div class="brand-monogram">P7</div>
+      <div class="directory-title" id="gateTitle" style="font-size:1.35rem;">Restricted Archive</div>
+      <p class="directory-sub" style="text-align:center;">This roster index is passcode protected. Enter the passcode to continue.</p>
+      <div class="field-block" style="width:100%; text-align:left;">
+        <label for="gateInput" class="field-label">
+          <span>Passcode</span>
+        </label>
+        <input
+          id="gateInput"
+          type="password"
+          class="prompt-input"
+          placeholder="Enter passcode"
+          autocomplete="off"
+          autocapitalize="off"
+          spellcheck="false"
+        />
+      </div>
+      <div class="gate-error" id="gateError" role="alert"></div>
+      <button id="gateUnlockBtn" class="tactile-btn primary" type="button" style="width:100%;">
+        <i class="ph ph-lock-key"></i>
+        <span>Unlock Archive</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="noise-overlay"></div>
+  <canvas id="rippleCanvas"></canvas>
+
+  <div class="page-shell">
+    <!-- SINGLE-LINE DESKTOP NAVIGATION (<= 72px) -->
+    <header class="top-nav">
+      <div class="brand-cluster">
+        <div class="brand-monogram">P7</div>
+        <span class="brand-name">P7-HS Roster Archive</span>
+        <span class="brand-meta">Local Ollama Index / 336 Students</span>
+      </div>
+
+      <div class="nav-actions">
+        <div class="select-wrapper">
+          <label for="modelSelect" style="position:absolute; width:1px; height:1px; overflow:hidden;">Select AI Model</label>
+          <select id="modelSelect" class="tactile-select">
+            <option value="browser:llama-3.2-1b">browser AI, on-device (first run downloads model)</option>
+            <option value="qwen2.5:3b">qwen2.5:3b (1.8 GB)</option>
+            <option value="qwen2.5:1.5b">qwen2.5:1.5b (0.9 GB)</option>
+            <option value="llama3.1:8b">llama3.1:8b (4.6 GB)</option>
+            <option value="qwen3-vl:4b">qwen3-vl:4b (3.1 GB)</option>
+          </select>
+          <i class="ph ph-caret-down select-chevron"></i>
+        </div>
+
+        <button id="holdModeBtn" class="tactile-btn active-state" type="button">
+          <i class="ph ph-timer"></i>
+          <span id="holdModeText">Hold Overlay: On</span>
+        </button>
+
+        <button id="openArcadeBtn" class="tactile-btn" type="button">
+          <i class="ph ph-game-controller"></i>
+          <span>Arcade Deck</span>
+        </button>
+
+        <button id="sfxToggleBtn" class="tactile-btn" type="button">
+          <i class="ph ph-speaker-high" id="sfxIcon"></i>
+          <span id="sfxText">Audio On</span>
+        </button>
+
+        <button id="themeToggleBtn" class="tactile-btn" type="button" aria-label="Toggle Light and Dark Theme">
+          <i class="ph ph-moon" id="themeIcon"></i>
+          <span id="themeText">Dark</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- SECTION 1: ASYMMETRIC SPLIT HERO (Max 4 text elements on left, real roster photo on right) -->
+    <section class="hero-split">
+      <div class="hero-copy">
+        <!-- Text Element 1: Single Eyebrow on the Page -->
+        <span class="eyebrow-tag">P7-HS Student Directory</span>
+
+        <!-- Text Element 2: Headline (<= 2 lines, descender clearance on italic) -->
+        <h1 class="hero-headline">
+          Query every student record with <em>local</em> language models.
+        </h1>
+
+        <!-- Text Element 3: Subtext (<= 20 words) -->
+        <p class="hero-subtext">
+          Filter 336 verified homeroom records by spelling patterns, teacher names, or ID numbers using private on-device inference.
+        </p>
+
+        <!-- Text Element 4: Form + Primary/Secondary CTAs -->
+        <div class="command-form-card">
+          <div class="field-block">
+            <label for="aiPromptInput" class="field-label">
+              <span>Natural Language Filter Prompt</span>
+              <span class="field-helper">Press Enter to run</span>
+            </label>
+            <input
+              id="aiPromptInput"
+              type="text"
+              class="prompt-input"
+              placeholder="Example: boys with an e in first and last name in ms masch's homeroom"
+              value="a boys name with an e in hisn first and last name whos in ms masch's homeroom"
+            />
+          </div>
+
+          <div class="cta-row">
+            <button id="runFilterBtn" class="tactile-btn primary" type="button">
+              <i class="ph ph-magnifying-glass"></i>
+              <span>Run Filter</span>
+            </button>
+            <button id="resetAllBtn" class="tactile-btn" type="button">
+              <i class="ph ph-arrow-counter-clockwise"></i>
+              <span>Reset Directory</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Real Digitized Source Sheet + Preset Prompts -->
+      <div class="hero-visual-col">
+        <div class="archive-media-frame">
+          <img
+            src="./IMG_3895.jpg"
+            alt="Digitized P7-HS printed student roster sheet used for OCR verification"
+            loading="eager"
+          />
+        </div>
+        <div class="archive-caption">
+          <span>Source artifact: Digitized P7-HS roster sheet (15 multi-angle plates verified)</span>
+          <span style="font-family:'JetBrains Mono',monospace;">336 IDs</span>
+        </div>
+
+        <div class="preset-strip" aria-label="Sample Filter Queries">
+          <button class="tactile-btn preset-chip" type="button" data-prompt="a boys name with an e in hisn first and last name whos in ms masch's homeroom">
+            Boys with 'E' in First &amp; Last in Ms. Masch
+          </button>
+          <button class="tactile-btn preset-chip" type="button" data-prompt="girls in Oshiro's homeroom with an a in their first name">
+            Girls in Oshiro with 'A' in First Name
+          </button>
+          <button class="tactile-btn preset-chip" type="button" data-prompt="students with hyphenated last names">
+            Hyphenated Last Names
+          </button>
+          <button class="tactile-btn preset-chip" type="button" data-prompt="boys in Turnipseed's homeroom">
+            Boys in Turnipseed
+          </button>
+          <button class="tactile-btn preset-chip" type="button" data-prompt="students with double letters in their last name in Ervin's homeroom">
+            Double-Letter Last Names in Ervin
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 2: ASYMMETRIC 3-CELL BENTO TELEMETRY SUMMARY -->
+    <section class="bento-section" aria-label="Filter Telemetry">
+      <div class="bento-grid">
+        <div class="bento-cell cell-primary">
+          <span class="bento-title">Active Compiler Constraints</span>
+          <div class="bento-pills" id="activeFilterPills">
+            <span class="filter-pill">Full Roster Index (No active constraints)</span>
+          </div>
+        </div>
+
+        <div class="bento-cell cell-pattern">
+          <span class="bento-title">Matched Records</span>
+          <div class="bento-value" id="matchedCountValue">336 / 336</div>
+        </div>
+
+        <div class="bento-cell cell-elevated">
+          <span class="bento-title">Inference Latency</span>
+          <div class="bento-value" id="latencyValue">Ready</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 3: ROSTER DIRECTORY & INSTANT REFINEMENT -->
+    <section class="directory-section">
+      <div class="directory-header">
+        <h2 class="directory-title">Verified Student Directory</h2>
+        <p class="directory-sub">
+          Refine the current LLM selection by homeroom instructor, gender classification, or instant substring lookup.
+        </p>
+      </div>
+
+      <div class="directory-controls">
+        <div class="field-block">
+          <label for="instantSearchInput" class="field-label">
+            <span>Instant Directory Filter</span>
+            <span class="field-helper">Filters current view by name, ID, or teacher</span>
+          </label>
+          <input
+            id="instantSearchInput"
+            type="text"
+            class="prompt-input"
+            style="height:40px; font-size:0.9rem;"
+            placeholder="Type a student name, library card ID, or homeroom teacher..."
+          />
+        </div>
+
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="tactile-btn gender-btn active-state" type="button" data-gender="all">All Genders</button>
+          <button class="tactile-btn gender-btn" type="button" data-gender="boy">Boys</button>
+          <button class="tactile-btn gender-btn" type="button" data-gender="girl">Girls</button>
+        </div>
+      </div>
+
+      <div class="teacher-scroll-strip" id="teacherPillsRow" role="tablist" aria-label="Homeroom Teachers"></div>
+
+      <div id="rosterMatrix" class="roster-matrix"></div>
+    </section>
+
+    <!-- SECTION 4: COMING SOON VISUAL TRAIT SEARCH (no eyebrow, headline stack only) -->
+    <section class="trait-section" aria-label="Coming Soon Visual Trait Search">
+      <div class="directory-header">
+        <h2 class="directory-title">Photo trait search is coming soon</h2>
+        <p class="directory-sub">
+          Describe visible photo traits such as hair style or hair color to narrow the verified roster. Guardrailed labels only, reviewed before release.
+        </p>
+      </div>
+
+      <div class="trait-grid">
+        <div class="trait-panel elevated">
+          <span class="coming-soon-badge">Coming Soon</span>
+          <div class="field-block">
+            <label for="traitPromptInput" class="field-label">
+              <span>Visual Trait Query (Preview Only)</span>
+              <span class="field-helper">Disabled until photo labels ship</span>
+            </label>
+            <input
+              id="traitPromptInput"
+              type="text"
+              class="prompt-input"
+              placeholder="Example: short dark curly hair, glasses"
+              disabled
+              aria-disabled="true"
+            />
+          </div>
+          <div class="cta-row">
+            <button id="traitNotifyBtn" class="tactile-btn primary" type="button">
+              <i class="ph ph-bell"></i>
+              <span>Notify Me at Launch</span>
+            </button>
+          </div>
+          <div class="trait-tiles">
+            <div class="trait-tile">
+              <i class="ph ph-hair-dryer"></i>
+              <strong>Hair traits</strong>
+              <span>Style, length, and color tags verified against yearbook plates.</span>
+            </div>
+            <div class="trait-tile">
+              <i class="ph ph-glasses"></i>
+              <strong>Visible markers</strong>
+              <span>Glasses and photo-visible markers only. No biometric scoring.</span>
+            </div>
+            <div class="trait-tile">
+              <i class="ph ph-shield-check"></i>
+              <strong>Guardrailed release</strong>
+              <span>Sensitive descriptors stay blocked. Labels ship after review.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="trait-panel">
+          <span class="bento-title">Planned Query Flow</span>
+          <div class="bento-value" style="font-size:1.05rem;">Text plus photo traits</div>
+          <p class="directory-sub">Combine the current text filter with optional trait tags. Untagged records stay listed, never hidden by default.</p>
+          <div class="reason-list">
+            <span class="reason-tag">hair:short-curly</span>
+            <span class="reason-tag">hair:dark</span>
+            <span class="reason-tag">glasses:yes</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div id="toastNote" class="toast-note" role="status" aria-live="polite"></div>
+
+  <!-- =================================================================
+       CHRONOGRAPH AI LOADING OVERLAY & MONOCHROME ARCADE DECK
+       ================================================================= -->
+  <div id="chronoModal" class="chronograph-modal" role="dialog" aria-modal="true" aria-labelledby="chronoStatusTitle">
+    <div class="modal-grid">
+      <!-- Left Column: Precision Chronograph & Compiler Stream -->
+      <div class="chrono-panel">
+        <div style="display:flex; justify-content:space-between; align-items:center; font-family:'JetBrains Mono',monospace; font-size:0.76rem; color:var(--text-secondary);">
+          <span>LOCAL OLLAMA ENGINE</span>
+          <span id="chronoElapsed">0.0s</span>
+        </div>
+
+        <div class="dial-housing">
+          <div class="dial-ring-outer"></div>
+          <div class="dial-ring-ticks"></div>
+          <div class="dial-ring-sweep"></div>
+          <div class="dial-center-readout" id="dialReadout">LLM</div>
+        </div>
+
+        <div class="chrono-status-title" id="chronoStatusTitle">Compiling Natural Language Filter</div>
+
+        <div class="chrono-log-box" id="chronoLogBox"></div>
+
+        <div class="reveal-banner" id="revealBanner">
+          <div style="font-weight:600; font-size:0.92rem; color:var(--text-primary);" id="revealBannerLabel">
+            3 Matching Records Verified
+          </div>
+          <button id="applyResultsBtn" class="tactile-btn primary" type="button" style="width:100%;">
+            <i class="ph ph-check-circle"></i>
+            <span>Show Filtered Roster</span>
+          </button>
+        </div>
+
+        <button id="dismissModalBtn" class="tactile-btn" type="button" style="width:100%;">
+          <i class="ph ph-x"></i>
+          <span>Close Overlay</span>
+        </button>
+      </div>
+
+      <!-- Right Column: High-Contrast Monochrome Arcade Deck -->
+      <div class="arcade-panel">
+        <div class="arcade-top">
+          <div>
+            <div style="font-weight:600; font-size:1.05rem; color:var(--text-primary);">
+              Wait-State Monochrome Arcade
+            </div>
+            <div style="font-size:0.8rem; color:var(--text-secondary);">
+              Play Snake, Flappy Drone, or Brick Breaker while local inference runs.
+            </div>
+          </div>
+
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="tactile-btn game-switch active-state" type="button" data-game="snake">Snake</button>
+            <button class="tactile-btn game-switch" type="button" data-game="flappy">Flappy Drone</button>
+            <button class="tactile-btn game-switch" type="button" data-game="breakout">Brick Breaker</button>
+          </div>
+        </div>
+
+        <div class="arcade-canvas-wrap">
+          <canvas id="arcadeCanvas" width="700" height="390"></canvas>
+        </div>
+
+        <div class="arcade-footer">
+          <div style="display:flex; gap:16px;">
+            <span>SCORE: <strong style="color:var(--text-primary);" id="scoreCurrent">0</strong></span>
+            <span>BEST: <strong style="color:var(--text-primary);" id="scoreBest">0</strong></span>
+          </div>
+          <div id="gameControlPrompt">Controls: WASD or Arrow Keys to steer</div>
+          <button id="resetGameBtn" class="tactile-btn" type="button" style="height:34px; padding:0 12px; font-size:0.76rem;">
+            <i class="ph ph-arrow-clockwise"></i>
+            <span>Restart Game</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* =====================================================================
+       1. SUBTLE MECHANICAL KEY-THOCK AUDIO SYNTHESIZER
+       Warm, low-pass filtered tactile feedback (no harsh laser screeches)
+       ===================================================================== */
+    let audioEnabled = true;
+    let audioCtx = null;
+
+    function ensureAudio() {
+      if (!audioCtx) {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (Ctx) audioCtx = new Ctx();
+      }
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      return audioCtx;
+    }
+
+    function playTactileSound(kind = 'press') {
+      if (!audioEnabled) return;
+      const ctx = ensureAudio();
+      if (!ctx) return;
+
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const filter = ctx.createBiquadFilter();
+      const gain = ctx.createGain();
+
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(900, now);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+
+      if (kind === 'hover') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(190, now);
+        osc.frequency.exponentialRampToValueAtTime(140, now + 0.04);
+        gain.gain.setValueAtTime(0.018, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+        osc.start(now);
+        osc.stop(now + 0.045);
+      } else if (kind === 'press') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(160, now);
+        osc.frequency.exponentialRampToValueAtTime(68, now + 0.075);
+        gain.gain.setValueAtTime(0.065, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+        osc.start(now);
+        osc.stop(now + 0.085);
+      } else if (kind === 'complete') {
+        [261.63, 329.63, 392.00].forEach((freq, i) => {
+          const o = ctx.createOscillator();
+          const g = ctx.createGain();
+          o.type = 'sine';
+          o.connect(g);
+          g.connect(ctx.destination);
+          o.frequency.setValueAtTime(freq, now + i * 0.09);
+          g.gain.setValueAtTime(0.045, now + i * 0.09);
+          g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.09 + 0.32);
+          o.start(now + i * 0.09);
+          o.stop(now + i * 0.09 + 0.34);
+        });
+      } else if (kind === 'point') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(440, now);
+        osc.frequency.exponentialRampToValueAtTime(587.33, now + 0.09);
+        gain.gain.setValueAtTime(0.035, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+        osc.start(now);
+        osc.stop(now + 0.11);
+      }
+    }
+
+    /* =====================================================================
+       2. SLOWER, CONTROLLED MAGNETIC BUTTON PHYSICS & RIPPLE RINGS
+       ===================================================================== */
+    const rippleCanvas = document.getElementById('rippleCanvas');
+    const rippleCtx = rippleCanvas.getContext('2d');
+    let ripples = [];
+
+    function syncRippleCanvas() {
+      rippleCanvas.width = window.innerWidth;
+      rippleCanvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', syncRippleCanvas);
+    syncRippleCanvas();
+
+    function createControlledRipple(x, y) {
+      ripples.push({
+        x,
+        y,
+        r: 4,
+        maxR: 72,
+        alpha: 0.38
+      });
+    }
+
+    function stepRipples() {
+      rippleCtx.clearRect(0, 0, rippleCanvas.width, rippleCanvas.height);
+      for (let i = ripples.length - 1; i >= 0; i--) {
+        const rp = ripples[i];
+        rp.r += (rp.maxR - rp.r) * 0.085;
+        rp.alpha *= 0.93;
+        if (rp.alpha < 0.01) {
+          ripples.splice(i, 1);
+          continue;
+        }
+        rippleCtx.beginPath();
+        rippleCtx.arc(rp.x, rp.y, rp.r, 0, Math.PI * 2);
+        rippleCtx.strokeStyle = `rgba(212, 212, 216, ${rp.alpha.toFixed(3)})`;
+        rippleCtx.lineWidth = 1.25;
+        rippleCtx.stroke();
+      }
+      requestAnimationFrame(stepRipples);
+    }
+    stepRipples();
+
+    function attachTactilePhysics(root = document) {
+      root.querySelectorAll('.tactile-btn').forEach(btn => {
+        if (btn.dataset.boundPhysics) return;
+        btn.dataset.boundPhysics = '1';
+
+        btn.addEventListener('mouseenter', () => {
+          playTactileSound('hover');
+        });
+
+        btn.addEventListener('mousemove', (e) => {
+          const rect = btn.getBoundingClientRect();
+          const localX = e.clientX - rect.left;
+          const localY = e.clientY - rect.top;
+          const offsetX = ((localX - rect.width / 2) / (rect.width / 2)) * 2.5;
+          const offsetY = ((localY - rect.height / 2) / (rect.height / 2)) * 2.0;
+
+          btn.style.setProperty('--mx', `${localX.toFixed(0)}px`);
+          btn.style.setProperty('--my', `${localY.toFixed(0)}px`);
+          btn.style.setProperty('--tx', `${offsetX.toFixed(2)}px`);
+          btn.style.setProperty('--ty', `${offsetY.toFixed(2)}px`);
+        });
+
+        btn.addEventListener('mouseleave', () => {
+          btn.style.setProperty('--tx', '0px');
+          btn.style.setProperty('--ty', '0px');
+        });
+
+        btn.addEventListener('click', (e) => {
+          playTactileSound('press');
+          const rect = btn.getBoundingClientRect();
+          const cx = e.clientX || (rect.left + rect.width / 2);
+          const cy = e.clientY || (rect.top + rect.height / 2);
+          createControlledRipple(cx, cy);
+          btn.classList.add('is-pressed');
+          setTimeout(() => btn.classList.remove('is-pressed'), 220);
+        });
+      });
+    }
+    attachTactilePhysics();
+
+    /* =====================================================================
+       3. ROSTER STATE, THEME LOCK & LOCAL LLM QUERY FLOW
+       ===================================================================== */
+    let fullRoster = [];
+    let llmSubset = [];
+    let selectedTeacher = 'ALL';
+    let selectedGender = 'all';
+    let currentSpec = {};
+    let holdOverlayOnComplete = true;
+
+    let backendOnline = false;
+
+    async function loadRosterData() {
+      try {
+        const res = await fetch('/api/roster');
+        if (!res.ok) throw new Error(`roster API ${res.status}`);
+        const data = await res.json();
+        backendOnline = true;
+        fullRoster = data.students || [];
+        llmSubset = [...fullRoster];
+        buildTeacherStrip(data.teachers || {});
+        renderStudentCards();
+      } catch (err) {
+        console.warn('Backend roster unavailable, loading bundled on-device roster.', err);
+        try {
+          const res = await fetch('./roster.json');
+          if (!res.ok) throw new Error(`bundled roster ${res.status}`);
+          const data = await res.json();
+          fullRoster = data.students || [];
+          llmSubset = [...fullRoster];
+          const teacherMap = {};
+          fullRoster.forEach(s => {
+            teacherMap[s.homeroom_teacher] = (teacherMap[s.homeroom_teacher] || 0) + 1;
+          });
+          buildTeacherStrip(teacherMap);
+          renderStudentCards();
+        } catch (fallbackErr) {
+          console.error('Failed to load roster:', fallbackErr);
+        }
+      }
+    }
+
+    function ensureBrowserModelOption(select) {
+      if (!select.querySelector('option[value^="browser:"]')) {
+        const opt = document.createElement('option');
+        opt.value = 'browser:llama-3.2-1b';
+        opt.textContent = 'browser AI, on-device (first run downloads model)';
+        select.prepend(opt);
+      }
+    }
+
+    async function loadModelOptions() {
+      const select = document.getElementById('modelSelect');
+      try {
+        const res = await fetch('/api/models');
+        if (!res.ok) throw new Error(`models API ${res.status}`);
+        const data = await res.json();
+        if (data.models && data.models.length > 0) {
+          backendOnline = true;
+          select.innerHTML = '';
+          ensureBrowserModelOption(select);
+          data.models.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m.name;
+            opt.textContent = `${m.name} (${m.size_gb} GB)`;
+            select.appendChild(opt);
+          });
+        }
+      } catch (err) {
+        console.warn('Model list fallback used: on-device browser AI only.');
+        ensureBrowserModelOption(select);
+        select.value = 'browser:llama-3.2-1b';
+      }
+    }
+
+    function buildTeacherStrip(teacherMap) {
+      const row = document.getElementById('teacherPillsRow');
+      row.innerHTML = '';
+
+      const allBtn = document.createElement('button');
+      allBtn.type = 'button';
+      allBtn.className = `tactile-btn ${selectedTeacher === 'ALL' ? 'active-state' : ''}`;
+      allBtn.dataset.teacher = 'ALL';
+      allBtn.innerHTML = `<span>All Homerooms</span> <span class="count-tag">${fullRoster.length}</span>`;
+      allBtn.onclick = () => {
+        selectedTeacher = 'ALL';
+        syncTeacherActiveButtons();
+        filterAndRenderDirectory();
+      };
+      row.appendChild(allBtn);
+
+      Object.keys(teacherMap).sort().forEach(t => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `tactile-btn ${selectedTeacher === t ? 'active-state' : ''}`;
+        btn.dataset.teacher = t;
+        btn.innerHTML = `<span>${t}</span> <span class="count-tag">${teacherMap[t]}</span>`;
+        btn.onclick = () => {
+          selectedTeacher = t;
+          syncTeacherActiveButtons();
+          filterAndRenderDirectory();
+        };
+        row.appendChild(btn);
+      });
+
+      attachTactilePhysics(row);
+    }
+
+    function syncTeacherActiveButtons() {
+      document.querySelectorAll('#teacherPillsRow .tactile-btn').forEach(btn => {
+        btn.classList.toggle('active-state', btn.dataset.teacher === selectedTeacher);
+      });
+    }
+
+    function markSubstringMatches(text, substrings = []) {
+      if (!substrings || substrings.length === 0) return text;
+      const escaped = substrings.filter(Boolean).map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+      if (escaped.length === 0) return text;
+      const re = new RegExp(`(${escaped.join('|')})`, 'gi');
+      return text.replace(re, '<span class="matched-glyph">$1</span>');
+    }
+
+    function filterAndRenderDirectory() {
+      const q = document.getElementById('instantSearchInput').value.trim().toLowerCase();
+      const visible = llmSubset.filter(s => {
+        if (selectedTeacher !== 'ALL' && s.homeroom_teacher !== selectedTeacher) return false;
+        if (selectedGender === 'boy' && !s.is_boy) return false;
+        if (selectedGender === 'girl' && !s.is_girl) return false;
+        if (q) {
+          const hay = `${s.first_name} ${s.last_name} ${s.id} ${s.homeroom_teacher}`.toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      });
+      renderStudentCards(visible);
+    }
+
+    function renderStudentCards(list = llmSubset) {
+      const matrix = document.getElementById('rosterMatrix');
+      matrix.innerHTML = '';
+
+      document.getElementById('matchedCountValue').textContent = `${list.length} / ${fullRoster.length}`;
+
+      if (list.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'empty-state-box';
+        empty.innerHTML = `
+          <div style="font-size:1.05rem; font-weight:600; color:var(--text-primary);">No matching student records</div>
+          <div style="font-size:0.88rem; color:var(--text-secondary); max-width:46ch;">
+            No students satisfied all active filter constraints. Clear the instant search box or reset the directory to view all 336 records.
+          </div>
+        `;
+        matrix.appendChild(empty);
+        return;
+      }
+
+      const fTokens = currentSpec.first_name_contains || [];
+      const lTokens = currentSpec.last_name_contains || [];
+
+      list.forEach((s, index) => {
+        const card = document.createElement('article');
+        card.className = 'student-row-card';
+        card.style.animationDelay = `${Math.min(index * 32, 480)}ms`;
+
+        const firstMarkup = markSubstringMatches(s.first_name, fTokens);
+        const lastMarkup = markSubstringMatches(s.last_name, lTokens);
+
+        const reasonsMarkup = (s.match_reasons || [])
+          .map(r => `<span class="reason-tag">${r}</span>`)
+          .join('');
+
+        card.innerHTML = `
+          <div class="row-top">
+            <span class="mono-id">ID #${s.id}</span>
+            <span class="gender-pill">${s.gender}</span>
+          </div>
+          <div class="student-fullname">
+            ${firstMarkup} <span class="last-part">${lastMarkup}</span>
+          </div>
+          <div class="row-footer">
+            <span>Homeroom: <strong style="color:var(--text-primary); font-weight:500;">${s.homeroom_teacher}</strong></span>
+            <span style="font-family:'JetBrains Mono',monospace; font-size:0.75rem;">${s.homeroom}</span>
+          </div>
+          ${reasonsMarkup ? `<div class="reason-list">${reasonsMarkup}</div>` : ''}
+        `;
+
+        card.addEventListener('click', (e) => {
+          playTactileSound('press');
+          createControlledRipple(e.clientX, e.clientY);
+        });
+
+        matrix.appendChild(card);
+      });
+    }
+
+    function updateTelemetryBento(spec, elapsedMs, modelName, engine) {
+      const pillsWrap = document.getElementById('activeFilterPills');
+      pillsWrap.innerHTML = '';
+
+      const tags = [];
+      if (spec.gender) tags.push(`Gender: ${spec.gender}`);
+      if (spec.homeroom_teacher) tags.push(`Homeroom: ${spec.homeroom_teacher}`);
+      if (spec.first_name_contains && spec.first_name_contains.length) {
+        tags.push(`First contains '${spec.first_name_contains.join(', ')}'`);
+      }
+      if (spec.last_name_contains && spec.last_name_contains.length) {
+        tags.push(`Last contains '${spec.last_name_contains.join(', ')}'`);
+      }
+      if (spec.first_name_starts_with) tags.push(`First starts '${spec.first_name_starts_with}'`);
+      if (spec.last_name_starts_with) tags.push(`Last starts '${spec.last_name_starts_with}'`);
+      if (spec.hyphenated_last) tags.push('Hyphenated Last Name');
+      if (spec.double_letters_in_last) tags.push('Double-Letter Last Name');
+
+      if (tags.length === 0) {
+        tags.push('Full Roster Index (No active constraints)');
+      }
+
+      tags.forEach(label => {
+        const span = document.createElement('span');
+        span.className = 'filter-pill';
+        span.textContent = label;
+        pillsWrap.appendChild(span);
+      });
+
+      const shortModel = (modelName || '').split(':')[0] || 'local';
+      const engineTag = engine === 'deterministic' ? 'deterministic' : shortModel;
+      document.getElementById('latencyValue').textContent =
+        elapsedMs > 0 ? `${elapsedMs} ms (${engineTag})` : 'Ready';
+    }
+
+    /* =====================================================================
+       4. CHRONOGRAPH AI OVERLAY ORCHESTRATION
+       ===================================================================== */
+    const chronoModal = document.getElementById('chronoModal');
+    const chronoLogBox = document.getElementById('chronoLogBox');
+    const revealBanner = document.getElementById('revealBanner');
+    const chronoStatusTitle = document.getElementById('chronoStatusTitle');
+    const chronoElapsed = document.getElementById('chronoElapsed');
+    const dialReadout = document.getElementById('dialReadout');
+    let chronoTimer = null;
+
+    function logToChrono(message, isComplete = false) {
+      const row = document.createElement('div');
+      row.className = `chrono-log-line ${isComplete ? 'complete' : ''}`;
+      row.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      chronoLogBox.appendChild(row);
+      chronoLogBox.scrollTop = chronoLogBox.scrollHeight;
+    }
+
+    function openChronoModal(headline = 'Compiling Natural Language Filter') {
+      chronoModal.classList.add('is-open');
+      revealBanner.style.display = 'none';
+      chronoLogBox.innerHTML = '';
+      chronoStatusTitle.textContent = headline;
+      dialReadout.textContent = 'RUN';
+      startArcade();
+
+      const t0 = performance.now();
+      clearInterval(chronoTimer);
+      chronoTimer = setInterval(() => {
+        const s = ((performance.now() - t0) / 1000).toFixed(1);
+        chronoElapsed.textContent = `${s}s`;
+      }, 100);
+    }
+
+    function closeChronoModal() {
+      chronoModal.classList.remove('is-open');
+      clearInterval(chronoTimer);
+      stopArcade();
+    }
+
+    async function runLanguageModelFilter() {
+      const prompt = document.getElementById('aiPromptInput').value.trim();
+      const model = document.getElementById('modelSelect').value;
+
+      openChronoModal('Compiling Natural Language Filter');
+      logToChrono(`Connecting to local Ollama model (${model})...`);
+      logToChrono(`Prompt: "${prompt}"`);
+
+      setTimeout(() => {
+        logToChrono('Extracting homeroom teacher alias, gender, and character rules...');
+      }, 380);
+
+      setTimeout(() => {
+        logToChrono('Evaluating compiled predicate across 336 P7-HS records...');
+      }, 820);
+
+      const wantsBrowserAI = model.startsWith('browser:') || !backendOnline;
+      if (wantsBrowserAI) {
+        try {
+          const clientAI = await import('./client-ai.js');
+          logToChrono('Running fully on-device: deterministic compiler plus browser AI assist.');
+          const result = await clientAI.clientFilterFlow(fullRoster, prompt, {
+            useBrowserAI: true,
+            log: (msg, done) => logToChrono(msg, done),
+          });
+          clearInterval(chronoTimer);
+          currentSpec = result.spec || {};
+          llmSubset = result.students || [];
+          selectedTeacher = 'ALL';
+          selectedGender = 'all';
+          syncTeacherActiveButtons();
+          updateTelemetryBento(currentSpec, result.elapsedMs, result.model, result.engine);
+          renderStudentCards(llmSubset);
+          dialReadout.textContent = `${llmSubset.length}`;
+          chronoStatusTitle.textContent = `Filter Complete (${llmSubset.length} Matched)`;
+          logToChrono(`Verified ${llmSubset.length} matching student record(s) on-device in ${result.elapsedMs} ms.`, true);
+          playTactileSound('complete');
+          document.getElementById('revealBannerLabel').textContent =
+            `${llmSubset.length} Matching Student${llmSubset.length === 1 ? '' : 's'} Verified`;
+          revealBanner.style.display = 'flex';
+          if (!holdOverlayOnComplete) {
+            setTimeout(() => closeChronoModal(), 750);
+          }
+        } catch (err) {
+          clearInterval(chronoTimer);
+          dialReadout.textContent = 'ERR';
+          logToChrono(`On-device error: ${err.message}`, true);
+        }
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/ai-filter', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt,
+            model,
+            min_think_ms: 1450
+          })
+        });
+        if (!res.ok) throw new Error(`filter API ${res.status}`);
+        const data = await res.json();
+        clearInterval(chronoTimer);
+
+        currentSpec = data.spec || {};
+        llmSubset = data.students || [];
+        selectedTeacher = 'ALL';
+        selectedGender = 'all';
+        syncTeacherActiveButtons();
+
+        updateTelemetryBento(currentSpec, data.elapsed_ms, data.model, data.engine);
+        if (data.note) logToChrono(data.note);
+        renderStudentCards(llmSubset);
+
+        dialReadout.textContent = `${data.count}`;
+        chronoStatusTitle.textContent = `Filter Complete (${data.count} Matched)`;
+        logToChrono(`Compiled predicate: ${JSON.stringify(currentSpec)}`, true);
+        logToChrono(`Verified ${data.count} matching student record(s) in ${data.elapsed_ms} ms.`, true);
+        playTactileSound('complete');
+
+        document.getElementById('revealBannerLabel').textContent =
+          `${data.count} Matching Student${data.count === 1 ? '' : 's'} Verified`;
+        revealBanner.style.display = 'flex';
+
+        if (!holdOverlayOnComplete) {
+          setTimeout(() => closeChronoModal(), 750);
+        }
+      } catch (err) {
+        clearInterval(chronoTimer);
+        dialReadout.textContent = 'ERR';
+        logToChrono(`Request error: ${err.message}`, true);
+      }
+    }
+
+    /* =====================================================================
+       5. HIGH-CONTRAST MONOCHROME ARCADE ENGINE (Snake, Flappy, Breakout)
+       ===================================================================== */
+    const arcadeCanvas = document.getElementById('arcadeCanvas');
+    const gctx = arcadeCanvas.getContext('2d');
+    let activeGame = 'snake';
+    let gameLoopActive = false;
+    let gameRaf = null;
+    let currentScore = 0;
+    let highScores = { snake: 0, flappy: 0, breakout: 0 };
+
+    function setArcadeScore(val) {
+      currentScore = val;
+      document.getElementById('scoreCurrent').textContent = currentScore;
+      if (currentScore > highScores[activeGame]) {
+        highScores[activeGame] = currentScore;
+        document.getElementById('scoreBest').textContent = highScores[activeGame];
+      }
+    }
+
+    /* --- GAME 1: MONOCHROME SNAKE --- */
+    let snake = {};
+    function resetSnake() {
+      const cols = 28, rows = 15;
+      snake = {
+        cols,
+        rows,
+        cw: arcadeCanvas.width / cols,
+        ch: arcadeCanvas.height / rows,
+        body: [{ x: 10, y: 7 }, { x: 9, y: 7 }, { x: 8, y: 7 }],
+        dir: { x: 1, y: 0 },
+        nextDir: { x: 1, y: 0 },
+        target: { x: 18, y: 7 },
+        lastStep: 0,
+        stepMs: 105
+      };
+      placeSnakeTarget();
+      setArcadeScore(0);
+    }
+
+    function placeSnakeTarget() {
+      let guard = 0;
+      do {
+        snake.target = {
+          x: Math.floor(Math.random() * snake.cols),
+          y: Math.floor(Math.random() * snake.rows)
+        };
+        guard++;
+      } while (
+        guard < 60 &&
+        snake.body.some(seg => seg.x === snake.target.x && seg.y === snake.target.y)
+      );
+    }
+
+    let arcadeFlash = { text: '', until: 0 };
+    function flashArcade(text) {
+      arcadeFlash = { text, until: performance.now() + 900 };
+      playTactileSound('error');
+    }
+    function arcadeFrozen() {
+      return performance.now() < arcadeFlash.until;
+    }
+    function drawArcadeFlash() {
+      if (!arcadeFrozen()) return;
+      gctx.fillStyle = 'rgba(9, 9, 11, 0.72)';
+      gctx.fillRect(0, 0, arcadeCanvas.width, arcadeCanvas.height);
+      gctx.fillStyle = '#f4f4f5';
+      gctx.font = '600 26px Outfit, sans-serif';
+      gctx.textAlign = 'center';
+      gctx.fillText(arcadeFlash.text, arcadeCanvas.width / 2, arcadeCanvas.height / 2 - 4);
+      gctx.fillStyle = '#a1a1aa';
+      gctx.font = '500 13px "JetBrains Mono", monospace';
+      gctx.fillText('RESTARTING', arcadeCanvas.width / 2, arcadeCanvas.height / 2 + 24);
+      gctx.textAlign = 'start';
+    }
+    function delayedReset(fn) {
+      const tokenGame = activeGame;
+      setTimeout(() => {
+        if (gameLoopActive && activeGame === tokenGame && chronoModal.classList.contains('is-open')) fn();
+      }, 900);
+    }
+
+    function updateSnake(ts) {
+      if (ts - snake.lastStep > snake.stepMs) {
+        snake.lastStep = ts;
+        snake.dir = snake.nextDir;
+        const head = {
+          x: (snake.body[0].x + snake.dir.x + snake.cols) % snake.cols,
+          y: (snake.body[0].y + snake.dir.y + snake.rows) % snake.rows
+        };
+
+        if (snake.body.some(seg => seg.x === head.x && seg.y === head.y)) {
+          flashArcade('SIGNAL LOST');
+          delayedReset(resetSnake);
+          return;
+        }
+
+        snake.body.unshift(head);
+        if (head.x === snake.target.x && head.y === snake.target.y) {
+          playTactileSound('point');
+          setArcadeScore(currentScore + 10);
+          placeSnakeTarget();
+        } else {
+          snake.body.pop();
+        }
+      }
+
+      gctx.fillStyle = '#09090b';
+      gctx.fillRect(0, 0, arcadeCanvas.width, arcadeCanvas.height);
+
+      // Subtle architectural grid
+      gctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+      for (let c = 0; c <= snake.cols; c++) {
+        gctx.beginPath();
+        gctx.moveTo(c * snake.cw, 0);
+        gctx.lineTo(c * snake.cw, arcadeCanvas.height);
+        gctx.stroke();
+      }
+      for (let r = 0; r <= snake.rows; r++) {
+        gctx.beginPath();
+        gctx.moveTo(0, r * snake.ch);
+        gctx.lineTo(arcadeCanvas.width, r * snake.ch);
+        gctx.stroke();
+      }
+
+      // Target node
+      const tx = (snake.target.x + 0.5) * snake.cw;
+      const ty = (snake.target.y + 0.5) * snake.ch;
+      gctx.beginPath();
+      gctx.arc(tx, ty, snake.cw * 0.34, 0, Math.PI * 2);
+      gctx.fillStyle = '#f4f4f5';
+      gctx.fill();
+
+      // Snake segments
+      snake.body.forEach((seg, idx) => {
+        const shade = Math.max(85, 244 - idx * 8);
+        gctx.fillStyle = idx === 0 ? '#ffffff' : `rgb(${shade}, ${shade}, ${shade + 4})`;
+        gctx.fillRect(
+          seg.x * snake.cw + 2,
+          seg.y * snake.ch + 2,
+          snake.cw - 4,
+          snake.ch - 4
+        );
+      });
+    }
+
+    /* --- GAME 2: MONOCHROME FLAPPY DRONE --- */
+    let flappy = {};
+    function resetFlappy() {
+      flappy = {
+        y: arcadeCanvas.height / 2,
+        vy: 0,
+        gravity: 0.32,
+        lift: -6.1,
+        gates: [],
+        tick: 0
+      };
+      setArcadeScore(0);
+    }
+
+    function updateFlappy() {
+      flappy.tick++;
+      flappy.vy += flappy.gravity;
+      flappy.y += flappy.vy;
+
+      if (flappy.tick % 96 === 0) {
+        const gap = 124;
+        const topH = 42 + Math.random() * (arcadeCanvas.height - gap - 84);
+        flappy.gates.push({
+          x: arcadeCanvas.width,
+          w: 44,
+          topH,
+          bottomY: topH + gap,
+          scored: false
+        });
+      }
+
+      gctx.fillStyle = '#09090b';
+      gctx.fillRect(0, 0, arcadeCanvas.width, arcadeCanvas.height);
+
+      const droneX = 130;
+      const droneR = 12;
+
+      for (let i = flappy.gates.length - 1; i >= 0; i--) {
+        const g = flappy.gates[i];
+        g.x -= 2.9;
+
+        gctx.fillStyle = '#27272a';
+        gctx.strokeStyle = '#71717a';
+        gctx.lineWidth = 1.5;
+
+        gctx.fillRect(g.x, 0, g.w, g.topH);
+        gctx.strokeRect(g.x, 0, g.w, g.topH);
+
+        gctx.fillRect(g.x, g.bottomY, g.w, arcadeCanvas.height - g.bottomY);
+        gctx.strokeRect(g.x, g.bottomY, g.w, arcadeCanvas.height - g.bottomY);
+
+        if (!g.scored && g.x + g.w < droneX) {
+          g.scored = true;
+          playTactileSound('point');
+          setArcadeScore(currentScore + 1);
+        }
+
+        if (
+          droneX + droneR > g.x &&
+          droneX - droneR < g.x + g.w &&
+          (flappy.y - droneR < g.topH || flappy.y + droneR > g.bottomY)
+        ) {
+          flashArcade('DRONE DOWN');
+          delayedReset(resetFlappy);
+          return;
+        }
+
+        if (g.x + g.w < -10) flappy.gates.splice(i, 1);
+      }
+
+      if (flappy.y < droneR) {
+        flappy.y = droneR;
+        flappy.vy = Math.max(flappy.vy, 0);
+      }
+
+      if (flappy.y > arcadeCanvas.height - droneR) {
+        flashArcade('DRONE DOWN');
+        delayedReset(resetFlappy);
+        return;
+      }
+
+      gctx.beginPath();
+      gctx.arc(droneX, flappy.y, droneR, 0, Math.PI * 2);
+      gctx.fillStyle = '#f4f4f5';
+      gctx.fill();
+    }
+
+    /* --- GAME 3: MONOCHROME BRICK BREAKER --- */
+    let breaker = {};
+    function resetBreaker() {
+      const bricks = [];
+      const rows = 5, cols = 9;
+      const pad = 8, top = 34, left = 26;
+      const bw = (arcadeCanvas.width - left * 2 - pad * (cols - 1)) / cols;
+      const bh = 18;
+      const shades = ['#f4f4f5', '#d4d4d8', '#a1a1aa', '#71717a', '#52525b'];
+
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          bricks.push({
+            x: left + c * (bw + pad),
+            y: top + r * (bh + pad),
+            w: bw,
+            h: bh,
+            fill: shades[r % shades.length],
+            active: true
+          });
+        }
+      }
+
+      const launchAngle = (Math.random() * 0.6 + 0.45) * (Math.random() > 0.5 ? 1 : -1);
+      const launchSpeed = 4.4;
+      breaker = {
+        px: arcadeCanvas.width / 2 - 56,
+        pw: 112,
+        ph: 11,
+        bx: arcadeCanvas.width / 2,
+        by: arcadeCanvas.height - 52,
+        vx: Math.sin(launchAngle) * launchSpeed,
+        vy: -Math.abs(Math.cos(launchAngle) * launchSpeed),
+        speed: launchSpeed,
+        bricks,
+        leftDown: false,
+        rightDown: false
+      };
+      setArcadeScore(0);
+    }
+
+    function updateBreaker() {
+      if (breaker.leftDown) breaker.px = Math.max(10, breaker.px - 6.2);
+      if (breaker.rightDown) breaker.px = Math.min(arcadeCanvas.width - breaker.pw - 10, breaker.px + 6.2);
+
+      breaker.bx += breaker.vx;
+      breaker.by += breaker.vy;
+
+      if (breaker.bx < 8 || breaker.bx > arcadeCanvas.width - 8) breaker.vx *= -1;
+      if (breaker.by < 8) breaker.vy *= -1;
+
+      const py = arcadeCanvas.height - 26;
+      if (
+        breaker.vy > 0 &&
+        breaker.by + 7 >= py &&
+        breaker.by - 7 <= py + breaker.ph &&
+        breaker.bx >= breaker.px - 7 &&
+        breaker.bx <= breaker.px + breaker.pw + 7
+      ) {
+        const hit = Math.max(-1, Math.min(1, (breaker.bx - (breaker.px + breaker.pw / 2)) / (breaker.pw / 2)));
+        const maxAngle = 1.05;
+        const angle = hit * maxAngle;
+        breaker.vx = Math.sin(angle) * breaker.speed;
+        breaker.vy = -Math.abs(Math.cos(angle) * breaker.speed);
+        breaker.by = py - 8;
+        playTactileSound('hover');
+      }
+
+      if (breaker.by > arcadeCanvas.height + 10) {
+        flashArcade('BALL LOST');
+        delayedReset(resetBreaker);
+        return;
+      }
+
+      gctx.fillStyle = '#09090b';
+      gctx.fillRect(0, 0, arcadeCanvas.width, arcadeCanvas.height);
+
+      breaker.bricks.forEach(b => {
+        if (!b.active) return;
+        if (
+          breaker.bx + 6 > b.x &&
+          breaker.bx - 6 < b.x + b.w &&
+          breaker.by + 6 > b.y &&
+          breaker.by - 6 < b.y + b.h
+        ) {
+          b.active = false;
+          const overlapLeft = (breaker.bx + 6) - b.x;
+          const overlapRight = (b.x + b.w) - (breaker.bx - 6);
+          const overlapTop = (breaker.by + 6) - b.y;
+          const overlapBottom = (b.y + b.h) - (breaker.by - 6);
+          const minX = Math.min(overlapLeft, overlapRight);
+          const minY = Math.min(overlapTop, overlapBottom);
+          if (minX < minY) breaker.vx *= -1;
+          else breaker.vy *= -1;
+          const cur = Math.hypot(breaker.vx, breaker.vy) || breaker.speed;
+          breaker.vx = (breaker.vx / cur) * breaker.speed;
+          breaker.vy = (breaker.vy / cur) * breaker.speed;
+          playTactileSound('point');
+          setArcadeScore(currentScore + 15);
+        }
+        gctx.fillStyle = b.fill;
+        gctx.fillRect(b.x, b.y, b.w, b.h);
+      });
+
+      gctx.fillStyle = '#f4f4f5';
+      gctx.fillRect(breaker.px, py, breaker.pw, breaker.ph);
+
+      gctx.beginPath();
+      gctx.arc(breaker.bx, breaker.by, 7, 0, Math.PI * 2);
+      gctx.fillStyle = '#ffffff';
+      gctx.fill();
+
+      if (breaker.bricks.every(b => !b.active)) {
+        flashArcade('BOARD CLEARED');
+        delayedReset(resetBreaker);
+      }
+    }
+
+    function resetSelectedGame() {
+      document.getElementById('scoreBest').textContent = highScores[activeGame] || 0;
+      if (activeGame === 'snake') {
+        resetSnake();
+        document.getElementById('gameControlPrompt').textContent = 'Controls: WASD or Arrow Keys to steer';
+      } else if (activeGame === 'flappy') {
+        resetFlappy();
+        document.getElementById('gameControlPrompt').textContent = 'Controls: Space, Up Arrow, or Click Canvas to lift';
+      } else {
+        resetBreaker();
+        document.getElementById('gameControlPrompt').textContent = 'Controls: Move Mouse over canvas or Left/Right Arrows';
+      }
+    }
+
+    function tickArcade(ts) {
+      if (!gameLoopActive) return;
+      if (arcadeFrozen()) drawArcadeFlash();
+      else if (activeGame === 'snake') updateSnake(ts);
+      else if (activeGame === 'flappy') updateFlappy();
+      else updateBreaker();
+      gameRaf = requestAnimationFrame(tickArcade);
+    }
+
+    function startArcade() {
+      if (!gameLoopActive) {
+        gameLoopActive = true;
+        resetSelectedGame();
+        gameRaf = requestAnimationFrame(tickArcade);
+      }
+    }
+
+    function stopArcade() {
+      gameLoopActive = false;
+      if (gameRaf) cancelAnimationFrame(gameRaf);
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (!chronoModal.classList.contains('is-open')) return;
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
+        e.preventDefault();
+      }
+      if (activeGame === 'snake') {
+        const d = snake.nextDir || snake.dir;
+        if ((e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') && d.y === 0) snake.nextDir = { x: 0, y: -1 };
+        if ((e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') && d.y === 0) snake.nextDir = { x: 0, y: 1 };
+        if ((e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') && d.x === 0) snake.nextDir = { x: -1, y: 0 };
+        if ((e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') && d.x === 0) snake.nextDir = { x: 1, y: 0 };
+      } else if (activeGame === 'flappy') {
+        if (e.repeat) return;
+        if (e.code === 'Space' || e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
+          flappy.vy = flappy.lift;
+          playTactileSound('hover');
+        }
+      } else if (activeGame === 'breakout') {
+        if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') breaker.leftDown = true;
+        if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') breaker.rightDown = true;
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      if (activeGame === 'breakout' && breaker) {
+        if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') breaker.leftDown = false;
+        if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') breaker.rightDown = false;
+      }
+    });
+
+    arcadeCanvas.addEventListener('mousedown', () => {
+      if (activeGame === 'flappy' && !arcadeFrozen()) {
+        flappy.vy = flappy.lift;
+        playTactileSound('hover');
+      }
+    });
+
+    arcadeCanvas.addEventListener('touchstart', (e) => {
+      if (activeGame === 'flappy' && !arcadeFrozen()) {
+        e.preventDefault();
+        flappy.vy = flappy.lift;
+        playTactileSound('hover');
+      }
+    }, { passive: false });
+
+    arcadeCanvas.addEventListener('mousemove', (e) => {
+      if (activeGame === 'breakout' && breaker) {
+        const rect = arcadeCanvas.getBoundingClientRect();
+        const scaleX = arcadeCanvas.width / rect.width;
+        const mx = (e.clientX - rect.left) * scaleX;
+        breaker.px = Math.max(8, Math.min(arcadeCanvas.width - breaker.pw - 8, mx - breaker.pw / 2));
+      }
+    });
+
+    /* =====================================================================
+       6. EVENT BINDINGS & DUAL-MODE THEME SWITCHER
+       ===================================================================== */
+    document.getElementById('runFilterBtn').addEventListener('click', runLanguageModelFilter);
+    document.getElementById('aiPromptInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') runLanguageModelFilter();
+    });
+
+    document.getElementById('resetAllBtn').addEventListener('click', () => {
+      document.getElementById('aiPromptInput').value = '';
+      document.getElementById('instantSearchInput').value = '';
+      currentSpec = {};
+      selectedTeacher = 'ALL';
+      selectedGender = 'all';
+      llmSubset = [...fullRoster];
+      syncTeacherActiveButtons();
+      updateTelemetryBento({}, 0, '');
+      renderStudentCards();
+    });
+
+    document.querySelectorAll('.preset-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        document.getElementById('aiPromptInput').value = chip.dataset.prompt;
+        runLanguageModelFilter();
+      });
+    });
+
+    document.getElementById('instantSearchInput').addEventListener('input', filterAndRenderDirectory);
+
+    document.querySelectorAll('.gender-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        selectedGender = btn.dataset.gender;
+        document.querySelectorAll('.gender-btn').forEach(b => b.classList.toggle('active-state', b === btn));
+        filterAndRenderDirectory();
+      });
+    });
+
+    document.querySelectorAll('.game-switch').forEach(btn => {
+      btn.addEventListener('click', () => {
+        activeGame = btn.dataset.game;
+        document.querySelectorAll('.game-switch').forEach(b => b.classList.toggle('active-state', b === btn));
+        resetSelectedGame();
+      });
+    });
+
+    const toastNote = document.getElementById('toastNote');
+    let toastTimer = null;
+    function showToast(message) {
+      if (!toastNote) return;
+      toastNote.textContent = message;
+      toastNote.classList.add('is-visible');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toastNote.classList.remove('is-visible'), 2600);
+    }
+
+    const traitNotifyBtn = document.getElementById('traitNotifyBtn');
+    if (traitNotifyBtn) {
+      traitNotifyBtn.addEventListener('click', () => {
+        try {
+          localStorage.setItem('p7hs-trait-notify', '1');
+        } catch (err) {}
+        traitNotifyBtn.classList.add('active-state');
+        showToast('Saved. This browser will be flagged at trait search launch.');
+      });
+    }
+
+    document.getElementById('resetGameBtn').addEventListener('click', resetSelectedGame);
+    document.getElementById('applyResultsBtn').addEventListener('click', closeChronoModal);
+    document.getElementById('dismissModalBtn').addEventListener('click', closeChronoModal);
+
+    document.getElementById('openArcadeBtn').addEventListener('click', () => {
+      openChronoModal('Arcade Deck Free-Play Mode');
+      dialReadout.textContent = 'PLAY';
+      logToChrono('Free-play session initialized. Select Snake, Flappy Drone, or Brick Breaker.', true);
+    });
+
+    document.getElementById('holdModeBtn').addEventListener('click', (e) => {
+      holdOverlayOnComplete = !holdOverlayOnComplete;
+      const btn = e.currentTarget;
+      btn.classList.toggle('active-state', holdOverlayOnComplete);
+      document.getElementById('holdModeText').textContent =
+        holdOverlayOnComplete ? 'Hold Overlay: On' : 'Hold Overlay: Off';
+    });
+
+    document.getElementById('sfxToggleBtn').addEventListener('click', () => {
+      audioEnabled = !audioEnabled;
+      document.getElementById('sfxIcon').className = audioEnabled ? 'ph ph-speaker-high' : 'ph ph-speaker-slash';
+      document.getElementById('sfxText').textContent = audioEnabled ? 'Audio On' : 'Audio Off';
+    });
+
+    document.getElementById('themeToggleBtn').addEventListener('click', () => {
+      const root = document.documentElement;
+      const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem('p7hs-theme', next); } catch (e) {}
+      document.getElementById('themeIcon').className = next === 'dark' ? 'ph ph-moon' : 'ph ph-sun';
+      document.getElementById('themeText').textContent = next === 'dark' ? 'Dark' : 'Light';
+    });
+
+    (function initPasscodeGate() {
+      const overlay = document.getElementById('gateOverlay');
+      const card = document.getElementById('gateCard');
+      const input = document.getElementById('gateInput');
+      const error = document.getElementById('gateError');
+      let unlocked = false;
+      try { unlocked = sessionStorage.getItem('p7hs-gate') === '1'; } catch (e) {}
+      if (unlocked) {
+        overlay.remove();
+        return;
+      }
+      document.body.style.overflow = 'hidden';
+      const deny = () => {
+        error.textContent = 'Wrong passcode. Try again.';
+        card.classList.remove('shake');
+        void card.offsetWidth;
+        card.classList.add('shake');
+        input.select();
+      };
+      const attempt = () => {
+        if (input.value === 'admin') {
+          try { sessionStorage.setItem('p7hs-gate', '1'); } catch (e) {}
+          overlay.classList.add('is-cleared');
+          document.body.style.overflow = '';
+          setTimeout(() => overlay.remove(), 520);
+          playTactileSound('complete');
+        } else {
+          deny();
+        }
+      };
+      document.getElementById('gateUnlockBtn').addEventListener('click', attempt);
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') attempt();
+      });
+      setTimeout(() => input.focus(), 120);
+    })();
+
+    loadRosterData();
+    loadModelOptions();
+  </script>
+</body>
+</html>
