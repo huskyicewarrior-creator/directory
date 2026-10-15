@@ -115,5 +115,40 @@ check("race composes with teacher", spec_comb.get("homeroom_teacher") == "Oshiro
 _, spec_nb = count_for("boys in Turnipseed's homeroom")
 check("no race leak into plain query", spec_nb.get("race_likely") is None)
 
+# 10. Photo-feature search (yearbook faces, CV heuristic flags)
+photo_cases = [
+    ("students with glasses", {"photo_glasses": True}),
+    ("girls with glasses", {"photo_glasses": True, "gender": "girl"}),
+    ("students without glasses", {"photo_glasses": False}),
+    ("students with blonde hair", {"photo_hair": "blonde"}),
+    ("students with black hair", {"photo_hair": "black"}),
+    ("students with red hair", {"photo_hair": "red"}),
+    ("students with gray hair", {"photo_hair": "gray"}),
+    ("redheads", {"photo_hair": "red"}),
+    ("students with a yearbook photo", {"has_photo": True}),
+    ("boys in Oshiro's homeroom with glasses", {"photo_glasses": True, "gender": "boy", "homeroom_teacher": "Oshiro"}),
+]
+for prompt, expected in photo_cases:
+    heur_p = heuristic_parse_prompt(prompt)
+    for key, exp in expected.items():
+        check(f"photo parse :: {prompt[:44]}", heur_p.get(key) == exp, f"got {heur_p.get(key)}")
+    merged_p = merge_specs({}, heur_p)
+    hits_p = apply_filter_spec(STUDENTS_CACHE, merged_p)
+    check(f"photo filter runs :: {prompt[:44]}", len(hits_p) >= 0, f"n={len(hits_p)}")
+
+n_glasses, spec_g = count_for("students with glasses")
+check("glasses count == 20", n_glasses == 20, f"got {n_glasses}")
+check("glasses badge", all("glasses" in " ".join(s.get("match_reasons", [])).lower() for s in apply_filter_spec(STUDENTS_CACHE, merge_specs({}, spec_g))))
+n_blonde, _ = count_for("students with blonde hair")
+check("blonde count == 43", n_blonde == 43, f"got {n_blonde}")
+_, spec_nohair = count_for("boys in Turnipseed's homeroom")
+check("no photo-feature leak into plain query",
+      spec_nohair.get("photo_glasses") is None and spec_nohair.get("photo_hair") is None)
+_, spec_plain_gender = count_for("students with glasses")
+check("glasses does not leak gender", spec_plain_gender.get("gender") is None)
+
+n_photo, _ = count_for("students with a yearbook photo")
+check("has_photo count == 215", n_photo == 215, f"got {n_photo}")
+
 print(f"\n{len(PASS)} passed, {len(FAIL)} failed.")
 sys.exit(1 if FAIL else 0)

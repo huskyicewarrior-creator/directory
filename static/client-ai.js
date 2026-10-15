@@ -103,6 +103,9 @@ export function heuristicSpec(prompt) {
     last_name_ends_with: null,
     id_contains: null,
     race_likely: null,
+    photo_glasses: null,
+    photo_hair: null,
+    has_photo: null,
     hyphenated_last: false,
     hyphenated_first: false,
     double_letters_in_last: false,
@@ -150,6 +153,24 @@ export function heuristicSpec(prompt) {
   if (m) { spec.first_name_ends_with = m[1]; grab(m, 1); }
   m = p.match(/last\s+name\s+(?:ends|ending)\s+with\s+(?:the\s+letter\s+|an?\s+)?['"]?([a-z]+)['"]?/d);
   if (m) { spec.last_name_ends_with = m[1]; grab(m, 1); }
+
+  if (/\bno\s+glasses\b|\bwithout\s+glasses\b/.test(p)) {
+    spec.photo_glasses = false;
+    grab(/\b(no\s+glasses|without\s+glasses)\b/.exec(p));
+  } else if (/\bglasse?s\b|\bwearing\s+glass\b/.test(p)) {
+    spec.photo_glasses = true;
+    grab(/\b(glasse?s|wearing\s+glass)\b/.exec(p));
+  }
+  for (const r of p.matchAll(/\b(blonde|blond|brown|black|dark\s+brown|red|gray|grey)\s+(?:-\s*)?hair\b/dg)) {
+    spec.photo_hair = { blonde: "blonde", blond: "blonde", brown: "brown", black: "black",
+      "dark brown": "brown", red: "red", gray: "gray", grey: "gray" }[r[1]] || "brown";
+    grab(r);
+    break;
+  }
+  m = /\bredheads?\b|\bred\-haired\b/.exec(p);
+  if (!spec.photo_hair && m) { spec.photo_hair = "red"; grab(m); }
+  m = /\b(?:has?|with)\s+(?:a\s+)?(?:yearbook\s+)?photo\b/.exec(p);
+  if (m) { spec.has_photo = true; grab(m); }
 
   if (p.includes("hyphen")) {
     if (p.includes("first") && !p.includes("last")) spec.hyphenated_first = true;
@@ -227,12 +248,51 @@ export function mergeSpecs(llm, heur) {
   }
   const llmRace = String((llm && llm.race_likely) || "").toLowerCase().trim();
   merged.race_likely = (heur && heur.race_likely) || (Object.values(RACE_LABELS).includes(llmRace) ? llmRace : null);
+  merged.photo_glasses = (heur && heur.photo_glasses) != null ? heur.photo_glasses
+    : (llm && typeof llm.photo_glasses === "boolean" ? llm.photo_glasses : null);
+  const llmHair = String((llm && llm.photo_hair) || "").toLowerCase();
+  merged.photo_hair = (heur && heur.photo_hair) || (["blonde", "brown", "black", "red", "gray"].includes(llmHair) ? llmHair : null);
+  merged.has_photo = (heur && heur.has_photo) || null;
   merged.hyphenated_last = Boolean((heur && heur.hyphenated_last) || (llm && llm.hyphenated_last));
   merged.hyphenated_first = Boolean(heur && heur.hyphenated_first);
   merged.double_letters_in_last = Boolean((heur && heur.double_letters_in_last) || (llm && llm.double_letters_in_last));
   merged.double_letters_in_first = Boolean(heur && heur.double_letters_in_first);
   merged.explanation = (llm && llm.explanation) || "Filter compiled on-device against 336 student roster records.";
   return merged;
+}
+
+/* Yearbook face descriptors (photo cards + feature flags), fetched once. */
+let FACE_DATA = null;
+let faceDataPromise = null;
+let FACE_BY_ID = {};
+
+export function loadFaceData() {
+  if (!faceDataPromise) {
+    faceDataPromise = fetch("/static/face_index.json")
+      .then((r) => (r.ok ? r.json() : { faces: {} }))
+      .then((raw) => {
+        const map = {};
+        for (const page of Object.keys(raw || {})) {
+          for (const f of (raw[page] && raw[page].faces) || []) {
+            if (f.id && f.file) {
+              map[String(f.id)] = { file: f.file, page, desc: f.desc || {}, glasses: (f.desc || {}).glasses, hair: (f.desc || {}).hair };
+            }
+          }
+        }
+        FACE_BY_ID = map;
+        FACE_DATA = map;
+        return map;
+      })
+      .catch(() => (FACE_BY_ID = {}));
+  }
+  return faceDataPromise;
+}
+
+export function faceById(id) {
+  return FACE_BY_ID ? FACE_BY_ID[String(id)] : null;
+}
+export function facesLoaded() {
+  return Boolean(FACE_DATA);
 }
 
 export function applySpec(students, spec) {
@@ -254,6 +314,11 @@ export function applySpec(students, spec) {
     if (spec.id_contains && !sid.includes(spec.id_contains)) continue;
     const racePct = spec.race_likely ? surnameCategoryPct(s.last_name, spec.race_likely) : 0;
     if (spec.race_likely && racePct < RACE_MIN_PCT) continue;
+    const face = FACE_BY_ID[String(s.id || "")];
+    if (spec.has_photo && !face) continue;
+    if (spec.photo_glasses === true && (!face || !face.desc || !face.desc.glasses)) continue;
+    if (spec.photo_glasses === false && face && face.desc && face.desc.glasses) continue;
+    if (spec.photo_hair && (!face || !face.desc || face.desc.hair !== spec.photo_hair)) continue;
     if (spec.hyphenated_last && !last.includes("-")) continue;
     if (spec.hyphenated_first && !first.includes("-")) continue;
     if (spec.double_letters_in_last && !/([a-z])\1/.test(last)) continue;
@@ -266,7 +331,12 @@ export function applySpec(students, spec) {
     if (spec.first_name_starts_with) reasons.push(`First starts '${spec.first_name_starts_with.toUpperCase()}'`);
     if (spec.last_name_starts_with) reasons.push(`Last starts '${spec.last_name_starts_with.toUpperCase()}'`);
     if (spec.race_likely) reasons.push(`Surname suggests ${spec.race_likely[0].toUpperCase() + spec.race_likely.slice(1)} (${Math.round(racePct)}%)`);
-    out.push({ ...s, match_reasons: reasons });
+    if (spec.photo_glasses === true) reasons.push("Wearing glasses in yearbook photo (CV flag)");
+    else if (spec.photo_glasses === false) reasons.push("No glasses detected in photo");
+    if (spec.photo_hair) reasons.push(`Photo hair tone: ${spec.photo_hair[0].toUpperCase() + spec.photo_hair.slice(1)}`);
+    if (spec.has_photo) reasons.push("Yearbook photo on file");
+    const extras = face ? { photo: "/static/faces/" + face.file, photo_page: face.page, photo_desc: face.desc || {} } : {};
+    out.push({ ...s, ...extras, match_reasons: reasons });
   }
   return out;
 }
@@ -278,7 +348,8 @@ export function hasAnyConstraint(spec) {
     spec.first_name_starts_with || spec.first_name_ends_with ||
     spec.last_name_starts_with || spec.last_name_ends_with || spec.id_contains ||
     spec.hyphenated_last || spec.hyphenated_first ||
-    spec.double_letters_in_last || spec.double_letters_in_first
+    spec.double_letters_in_last || spec.double_letters_in_first ||
+    spec.photo_glasses != null || spec.photo_hair || spec.has_photo
   );
 }
 

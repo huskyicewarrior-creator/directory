@@ -896,6 +896,39 @@
         box-shadow 580ms var(--ease-out-expo);
     }
 
+    .yearbook-photo {
+      display: flex;
+      justify-content: flex-start;
+    }
+
+    .yearbook-photo img {
+      width: 84px;
+      height: auto;
+      object-fit: cover;
+      border-radius: 10px;
+      border: 1px solid var(--border-subtle);
+      filter: grayscale(12%) contrast(1.03);
+    }
+
+    .photo-tags {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .photo-tag {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.68rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+    }
+
+    .photo-disclaimer br { display: none; }
+
     @keyframes slowReveal {
       0% {
         opacity: 0;
@@ -1362,6 +1395,15 @@
           <button class="tactile-btn preset-chip" type="button" data-prompt="hispanic students">
             Likely Hispanic Surnames
           </button>
+          <button class="tactile-btn preset-chip" type="button" data-prompt="students with glasses">
+            Glasses in Yearbook Photo
+          </button>
+          <button class="tactile-btn preset-chip" type="button" data-prompt="students with blonde hair">
+            Blonde Hair (Photo Tone)
+          </button>
+          <button class="tactile-btn preset-chip" type="button" data-prompt="students with a photo">
+            Has Yearbook Photo
+          </button>
         </div>
       </div>
     </section>
@@ -1394,6 +1436,9 @@
         <h2 class="directory-title">Verified Student Directory</h2>
         <p class="directory-sub">
           Refine the current LLM selection by homeroom instructor, gender classification, or instant substring lookup.
+        </p>
+        <p class="directory-sub photo-disclaimer" style="opacity:0.75; font-size:0.78rem;">
+          Yearbook photos and feature flags (glasses, hair tone) are heuristic image analysis of the portrait itself<br>— they describe each photo, not the student beyond it. 215 of 336 records have photos on file.
         </p>
       </div>
 
@@ -1744,6 +1789,28 @@
 
     let backendOnline = false;
 
+    /* Yearbook photo faces (photo cards + heuristic feature flags). */
+    let faceLookup = {};
+
+    async function loadFaceLookup() {
+      try {
+        const res = await fetch('/static/face_index.json');
+        if (!res.ok) throw new Error(`face index ${res.status}`);
+        const raw = await res.json();
+        const map = {};
+        Object.keys(raw || {}).forEach((page) => {
+          ((raw[page] && raw[page].faces) || []).forEach((f) => {
+            if (f.id && f.file) {
+              map[String(f.id)] = { file: f.file, desc: f.desc || {} };
+            }
+          });
+        });
+        faceLookup = map;
+      } catch (err) {
+        console.warn('Face index unavailable:', err);
+      }
+    }
+
     async function loadRosterData() {
       try {
         const res = await fetch('/api/roster');
@@ -1903,14 +1970,29 @@
           .map(r => `<span class="reason-tag">${r}</span>`)
           .join('');
 
+        const photo = s.photo || (faceLookup[s.id] ? `/static/faces/${faceLookup[s.id].file}` : '');
+        const desc = s.photo_desc || (faceLookup[s.id] ? faceLookup[s.id].desc : null);
+        const photoMarkup = photo ? `
+          <div class="yearbook-photo">
+            <img src="${photo}" alt="Yearbook photo of ${s.first_name} ${s.last_name}" loading="lazy" />
+          </div>` : '';
+        const photoTags = [];
+        if (desc && desc.glasses) photoTags.push('glasses');
+        if (desc && desc.hair) photoTags.push(`${desc.hair} hair`);
+        const photoTagMarkup = photoTags.length
+          ? `<div class="photo-tags">${photoTags.map(t => `<span class="photo-tag">${t}</span>`).join('')}</div>`
+          : '';
+
         card.innerHTML = `
           <div class="row-top">
             <span class="mono-id">ID #${s.id}</span>
             <span class="gender-pill">${s.gender}</span>
           </div>
-          <div class="student-fullname">
+          <div class="student-fullname student-with-photo">
             ${firstMarkup} <span class="last-part">${lastMarkup}</span>
           </div>
+          ${photoMarkup}
+          ${photoTagMarkup}
           <div class="row-footer">
             <span>Homeroom: <strong style="color:var(--text-primary); font-weight:500;">${s.homeroom_teacher}</strong></span>
             <span style="font-family:'JetBrains Mono',monospace; font-size:0.75rem;">${s.homeroom}</span>
@@ -1943,6 +2025,10 @@
       if (spec.first_name_starts_with) tags.push(`First starts '${spec.first_name_starts_with}'`);
       if (spec.last_name_starts_with) tags.push(`Last starts '${spec.last_name_starts_with}'`);
       if (spec.race_likely) tags.push(`Likely ${spec.race_likely[0].toUpperCase() + spec.race_likely.slice(1)} surnames (60%+)`);
+      if (spec.photo_glasses === true) tags.push('Photo: glasses detected');
+      else if (spec.photo_glasses === false) tags.push('Photo: no glasses');
+      if (spec.photo_hair) tags.push(`Photo hair tone: ${spec.photo_hair[0].toUpperCase() + spec.photo_hair.slice(1)}`);
+      if (spec.has_photo) tags.push('Yearbook photo on file');
       if (spec.hyphenated_last) tags.push('Hyphenated Last Name');
       if (spec.double_letters_in_last) tags.push('Double-Letter Last Name');
 
@@ -2676,6 +2762,7 @@
       setTimeout(() => input.focus(), 120);
     })();
 
+    loadFaceLookup();
     loadRosterData();
     loadModelOptions();
   </script>

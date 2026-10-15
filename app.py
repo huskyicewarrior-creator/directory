@@ -161,6 +161,29 @@ def load_students() -> List[Dict[str, Any]]:
 
 STUDENTS_CACHE = load_students()
 
+PHOTO_HAIR_LABELS = {"blonde": "Blonde", "brown": "Brown", "black": "Dark", "red": "Red", "gray": "Gray"}
+
+
+def load_face_index() -> Dict[str, Dict[str, Any]]:
+    """Yearbook photo faces: student id -> {file, desc, page} for photo features."""
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    for cand in (os.path.join(base_dir, "static", "face_index.json"),
+                 os.path.join(base_dir, "face_index.json")):
+        if os.path.exists(cand):
+            try:
+                raw = json.load(open(cand, encoding="utf-8"))
+            except Exception:
+                return {}
+            faces = {}
+            for page, data in raw.items():
+                for f in data.get("faces", []):
+                    if f.get("id") and f.get("file"):
+                        faces[str(f["id"])] = f
+            return faces
+    return {}
+
+
+FACE_CACHE = load_face_index()
 
 class AIQueryRequest(BaseModel):
     prompt: str
@@ -212,6 +235,9 @@ def heuristic_parse_prompt(prompt: str) -> Dict[str, Any]:
         "id_contains": None,
         "name_contains": [],
         "race_likely": None,
+        "photo_glasses": None,
+        "photo_hair": None,
+        "has_photo": None,
         "double_letters_in_last": False,
         "double_letters_in_first": False,
         "hyphenated_last": False,
@@ -360,6 +386,34 @@ def heuristic_parse_prompt(prompt: str) -> Dict[str, Any]:
                 spec["race_likely"] = "multi"
                 grab(m_mx)
 
+    # Photo features from the yearbook page itself (glasses flag / hair tone).
+    if re.search(r"\bno\s+glasses\b|\bwithout\s+glasses\b", p):
+        spec["photo_glasses"] = False
+        grab(re.search(r"\b(no\s+glasses|without\s+glasses)\b", p))
+    elif re.search(r"\bglasse?s\b|\bwearing\s+glass\b", p):
+        m_g = re.search(r"\b(glasse?s|wearing\s+glass)\b", p)
+        spec["photo_glasses"] = True
+        grab(m_g)
+
+    for m_h in re.finditer(r"\b(blonde|blond|brown|black|dark\s+brown|red|gray|grey)\s+(?:-\s*)?hair\b", p):
+        word = m_h.group(1)
+        bucket = {"blonde": "blonde", "blond": "blonde", "brown": "brown",
+                  "black": "black", "dark brown": "brown", "red": "red",
+                  "gray": "gray", "grey": "gray"}.get(word, "brown")
+        spec["photo_hair"] = bucket
+        grab(m_h)
+        break
+    if not spec["photo_hair"]:
+        m_rh = re.search(r"\bredheads?\b|\bred\-haired\b", p)
+        if m_rh:
+            spec["photo_hair"] = "red"
+            grab(m_rh)
+
+    m_ph = re.search(r"\b(?:has?|with)\s+(?:a\s+)?(?:yearbook\s+)?photo\b", p)
+    if m_ph:
+        spec["has_photo"] = True
+        grab(m_ph)
+
     # Gender detection LAST, on text with letter-value spans scrubbed out,
     # so values like "son" (ends with son) never leak into gender.
     if re.search(r"\b(boy|boys|male|males|guy|guys|he|his|him|son)\b", scrubbed):
@@ -389,6 +443,9 @@ Given a user's natural language request to filter a school roster, output ONLY a
   "hyphenated_last": boolean,
   "double_letters_in_last": boolean,
   "race_likely": one of "white" | "black" | "asian" | "hispanic" | "native" | "multi" or null (only when the user asks for a background, e.g. "asian students" means "asian"),
+  "photo_glasses": true | false | null (true = "students with glasses" / "wearing glasses"; false only for "no glasses"/"without glasses"; null otherwise),
+  "photo_hair": one of "blonde" | "brown" | "black" | "red" | "gray" | null (photo hair tone visible in the yearbook photo, e.g. "blonde hair"),
+  "has_photo": true | null (true = "students with a photo" / "has a yearbook photo"),
   "explanation": "A crisp, futuristic 1-sentence summary of the neural filter criteria applied."
 }
 Important rules:
@@ -398,7 +455,7 @@ Important rules:
 4. If the user mentions "ms masch" or "masch", set "homeroom_teacher": "Mascheroni".
 5. Output ONLY raw JSON, no markdown fences.
 6. Only set "race_likely" when the user explicitly asks for a background (race, ethnicity, asian, black, white, hispanic, latino).
-6. Only set "race_likely" when the user explicitly asks for a background (race, ethnicity, asian, black, white, hispanic, latino)."""
+7. Only set "photo_glasses"/"photo_hair" when the user explicitly asks about photo features (glasses, hair tone); these flags come from image analysis of the yearbook photos."""
 
 
 def salvage_llm_json(content: str) -> Dict[str, Any]:
@@ -549,6 +606,13 @@ def merge_specs(llm_spec: Dict[str, Any], heur_spec: Dict[str, Any]) -> Dict[str
 
     llm_race = str(llm_spec.get("race_likely") or "").lower().strip()
     merged["race_likely"] = heur_spec.get("race_likely") or (llm_race if llm_race in RACE_LABELS.values() else None)
+    merged["photo_glasses"] = heur_spec.get("photo_glasses")
+    if merged["photo_glasses"] is None and isinstance(llm_spec.get("photo_glasses"), bool):
+        merged["photo_glasses"] = bool(llm_spec.get("photo_glasses"))
+    merged["photo_hair"] = heur_spec.get("photo_hair")
+    if not merged["photo_hair"] and str(llm_spec.get("photo_hair") or "").lower() in PHOTO_HAIR_LABELS:
+        merged["photo_hair"] = str(llm_spec.get("photo_hair")).lower()
+    merged["has_photo"] = heur_spec.get("has_photo")
     merged["hyphenated_last"] = bool(heur_spec.get("hyphenated_last") or llm_spec.get("hyphenated_last"))
     merged["hyphenated_first"] = bool(heur_spec.get("hyphenated_first"))
     merged["double_letters_in_last"] = bool(heur_spec.get("double_letters_in_last") or llm_spec.get("double_letters_in_last"))
@@ -604,6 +668,20 @@ def apply_filter_spec(students: List[Dict[str, Any]], spec: Dict[str, Any]) -> L
         if spec.get("race_likely") and race_pct < RACE_MIN_PCT:
             continue
 
+        # Photo features from the yearbook image (heuristic flags per face)
+        face = FACE_CACHE.get(s["id"])
+        if spec.get("has_photo") and not face:
+            continue
+        if spec.get("photo_glasses") is True:
+            if not face or not face.get("desc", {}).get("glasses"):
+                continue
+        if spec.get("photo_glasses") is False:
+            if face and face.get("desc", {}).get("glasses"):
+                continue
+        if spec.get("photo_hair"):
+            if not face or face.get("desc", {}).get("hair") != spec["photo_hair"]:
+                continue
+
         # Lengths
         if spec.get("min_first_name_length") and len(first_l) < spec["min_first_name_length"]:
             continue
@@ -642,6 +720,20 @@ def apply_filter_spec(students: List[Dict[str, Any]], spec: Dict[str, Any]) -> L
             reasons.append(f"Last starts '{spec['last_name_starts_with'].upper()}'")
         if spec.get("race_likely"):
             reasons.append(f"Surname suggests {spec['race_likely'].title()} ({race_pct:.0f}%)")
+        if spec.get("photo_glasses") is True:
+            reasons.append("Wearing glasses in yearbook photo (CV flag)")
+        if spec.get("photo_glasses") is False:
+            reasons.append("No glasses detected in photo")
+        if spec.get("photo_hair"):
+            reasons.append(f"Photo hair tone: {PHOTO_HAIR_LABELS[spec['photo_hair']]}")
+        if spec.get("has_photo"):
+            reasons.append("Yearbook photo on file")
+        if face:
+            s_extra = {"photo": "/static/faces/" + face["file"], "photo_page": face.get("page"),
+                       "photo_desc": face.get("desc", {})}
+            merged_into = dict(s)
+            merged_into.update(s_extra)
+            s = merged_into
 
         s_copy = dict(s)
         s_copy["match_reasons"] = reasons
@@ -661,6 +753,21 @@ def get_roster():
         "homeroom": "P7-HS",
         "teachers": teachers,
         "students": STUDENTS_CACHE,
+    }
+
+
+@app.get("/api/faces")
+def get_faces():
+    """Yearbook photo faces: id -> file + heuristic descriptors, for the UI."""
+    return {
+        "count": len(FACE_CACHE),
+        "faces": {
+            sid: {
+                "file": f["file"],
+                "page": f.get("page"),
+                "desc": f.get("desc", {}),
+            } for sid, f in FACE_CACHE.items()
+        },
     }
 
 
@@ -733,6 +840,9 @@ def ai_filter(req: AIQueryRequest):
         merged_spec.get("min_last_name_length"),
         merged_spec.get("max_last_name_length"),
         merged_spec.get("race_likely"),
+        merged_spec.get("photo_glasses") is not None,
+        merged_spec.get("photo_hair"),
+        merged_spec.get("has_photo"),
         merged_spec.get("hyphenated_last"),
         merged_spec.get("hyphenated_first"),
         merged_spec.get("double_letters_in_last"),
