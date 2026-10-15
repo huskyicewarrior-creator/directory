@@ -1330,7 +1330,7 @@
       <div class="hero-visual-col">
         <div class="archive-media-frame">
           <img
-            src="./IMG_3895.jpg"
+            src="/static/IMG_3895.jpg"
             alt="Digitized P7-HS printed student roster sheet used for OCR verification"
             loading="eager"
           />
@@ -1747,7 +1747,7 @@
       } catch (err) {
         console.warn('Backend roster unavailable, loading bundled on-device roster.', err);
         try {
-          const res = await fetch('./roster.json');
+          const res = await fetch('/static/roster.json');
           if (!res.ok) throw new Error(`bundled roster ${res.status}`);
           const data = await res.json();
           fullRoster = data.students || [];
@@ -2012,7 +2012,7 @@
       const wantsBrowserAI = model.startsWith('browser:') || !backendOnline;
       if (wantsBrowserAI) {
         try {
-          const clientAI = await import('./client-ai.js');
+          const clientAI = await import('/static/client-ai.js');
           logToChrono('Running fully on-device: deterministic compiler plus browser AI assist.');
           const result = await clientAI.clientFilterFlow(fullRoster, prompt, {
             useBrowserAI: true,
